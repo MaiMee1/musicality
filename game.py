@@ -5,7 +5,7 @@ from keyboard import create_keyboard_shape
 # SCREEN_WIDTH = 1920
 # SCREEN_HEIGHT = 1080
 SCREEN_WIDTH = 1000
-SCREEN_HEIGHT = 1000
+SCREEN_HEIGHT = 800
 SCREEN_TITLE = "Game Window"
 
 
@@ -19,6 +19,7 @@ class GameWindow(arcade.Window):
 
     def on_draw(self):
         arcade.start_render()
+        self.shape.update()
         self.shape.draw()
 
     def on_key_press(self, symbol: int, modifiers: int):

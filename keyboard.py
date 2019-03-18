@@ -1,63 +1,242 @@
 """
 Due to limitations from the arcade library, the fn key does not work.
 """
-from typing import Union, Tuple, List, Dict
+from typing import Dict
 
 import arcade
+from arcade.arcade_types import *
 
 from key import *
 from key import _kn2v, _kv2n
 
-sep = 0.075
-SCALING = 3 / sep
+SCALING_CONSTANT = 3
+SEP = 0.075
+SCALING = SCALING_CONSTANT / SEP
+PRECISION = 10
 
 
-class Key:
-    def __init__(self, width: float, height: float, symbol: int,
-                 center_x: float = 0, center_y: float = 0):
+class Rectangle:
+    def __init__(self, center_x: float, center_y: float, width: float,
+                 height: float, **kwargs):
         self.width = width
         self.height = height
-        self.symbol = symbol
-        self.position = (center_x, center_y)
+        self._position = [center_x, center_y]
+
+        self.color = kwargs.pop('color', arcade.color.WHITE)  # type: Color
+        self.alpha = kwargs.pop('alpha', 255)  # type: int
+        self.border_width = kwargs.pop('border_width', 1)  # type: float
+        self.tilt_angle = kwargs.pop('tilt_angle', 0)  # type: float
+
+        self.shape = None  # type: arcade.Shape
+        self.update()
 
     def __str__(self):
-        return f"{self.width} {self.height} {self.symbol} {self.position}"
+        return f"size: {self.size} posn: {self._position}"
+
+    def _get_position(self) -> (float, float):
+        return self._position[0], self._position[1]
+
+    def _set_position(self, new_value: (float, float)):
+        self._position = list(new_value)
+
+    position = property(_get_position, _set_position)
+
+    def _get_center_x(self) -> float:
+        return self._position[0]
+
+    def _set_center_x(self, new_value: float):
+        self._position[0] = new_value
+
+    center_x = property(_get_center_x, _set_center_x)
+
+    def _get_center_y(self) -> float:
+        return self._position[1]
+
+    def _set_center_y(self, new_value: float):
+        self._position[1] = new_value
+
+    center_y = property(_get_center_y, _set_center_y)
+
+    def change_position(self, delta_x: float, delta_y: float) -> (float, float):
+        """ Returns new position """
+        self.center_x += delta_x
+        self.center_y += delta_y
+        return self.position
+
+    def _get_right(self) -> float:
+        return self._position[0] + round(self.width / 2, PRECISION)
+
+    def _set_right(self, new_value: float):
+        self.center_x += new_value - round(self.width / 2, PRECISION) - self.center_x
+
+    right = property(_get_right, _set_right)
+
+    def _get_left(self) -> float:
+        return self._position[0] - round(self.width / 2, PRECISION)
+
+    def _set_left(self, new_value: float):
+        self.center_x += new_value + round(self.width / 2, PRECISION) - self.center_x
+
+    left = property(_get_left, _set_left)
+
+    def _get_top(self) -> float:
+        return self._position[1] + round(self.height / 2, PRECISION)
+
+    def _set_top(self, new_value: float):
+        self.center_y += new_value - round(self.height / 2, PRECISION) - self.center_y
+
+    top = property(_get_top, _set_top)
+
+    def _get_bottom(self) -> float:
+        return self._position[1] - round(self.height / 2, PRECISION)
+
+    def _set_bottom(self, new_value: float):
+        self.center_y += new_value + round(self.height / 2, PRECISION) - self.center_y
+
+    bottom = property(_get_bottom, _set_bottom)
+
+    def _get_opacity(self) -> float:
+        return round(self.alpha / 255, 1)
+
+    def _set_opacity(self, new_value: float):
+        self.alpha = int(round(new_value * 255, 0))
+
+    opacity = property(_get_opacity, _set_opacity)
 
     @property
-    def center_x(self):
-        return self.position[0]
+    def rgba_color(self) -> Color:
+        return self.color[0], self.color[1], self.color[2], self.alpha
 
     @property
-    def center_y(self):
-        return self.position[1]
+    def size(self) -> (float, float):
+        return self.width, self.height
+
+    def update(self):
+        self.shape = arcade.create_rectangle(self.center_x, self.center_y,
+                                             self.width, self.height,
+                                             self.rgba_color,
+                                             tilt_angle=self.tilt_angle)
+
+    def draw(self):
+        self.shape.draw()
 
 
-def _create_keys(keys: List[int], width: float, height: float, **kwargs) -> List[Key]:
+class Key(Rectangle):
+    def __init__(self, center_x: float, center_y: float, width: float,
+                 height: float, symbol: int, **kwargs):
+        super().__init__(center_x, center_y, width, height, **kwargs)
+
+        self.symbol = symbol
+
+    def __str__(self):
+        return f"key constant: {self.symbol} size: {self.size} posn: {self._position}"
+
+
+def _align_center_x(shapes: List[Rectangle], index: int = 0, most=False) -> float:
+    """ Returns center_x aligned to """
+    if most:
+        right = max([shape.right for shape in shapes])
+        left = min([shape.left for shape in shapes])
+        new_x = round((right + left) / 2, PRECISION)
+    else:
+        new_x = shapes[index].center_x
+    for shape in shapes:
+        shape.center_x = new_x
+    return new_x
+
+
+def _align_center_y(shapes: List[Rectangle], index: int = 0, most=False) -> float:
+    """ Returns center_y aligned to """
+    if most:
+        top = max([shape.top for shape in shapes])
+        bottom = min([shape.bottom for shape in shapes])
+        new_y = round((top + bottom) / 2, PRECISION)
+    else:
+        new_y = shapes[index].center_y
+    for shape in shapes:
+        shape.center_y = new_y
+    return new_y
+
+
+def _align_right(shapes: List[Rectangle], index: int = 0, most=False) -> float:
+    """ Returns center_x aligned to """
+    if most:
+        new_right = max([shape.right for shape in shapes])
+    else:
+        new_right = shapes[index].right
+    for shape in shapes:
+        shape.right = new_right
+    return new_right
+
+
+def _align_left(shapes: List[Rectangle], index: int = 0, most=False) -> float:
+    """ Returns center_x aligned to """
+    if most:
+        new_left = min([shape.left for shape in shapes])
+    else:
+        new_left = shapes[index].left
+    for shape in shapes:
+        shape.left = new_left
+    return new_left
+
+
+def _align_top(shapes: List[Rectangle], index: int = 0, most=False) -> float:
+    """ Returns bottom aligned to """
+    if most:
+        new_top = max([shape.top for shape in shapes])
+    else:
+        new_top = shapes[index].top
+    for shape in shapes:
+        shape.top = new_top
+    return new_top
+
+
+def _align_bottom(shapes: List[Rectangle], index: int = 0, most=False) -> float:
+    """ Returns bottom aligned to """
+    if most:
+        new_bottom = min([shape.bottom for shape in shapes])
+    else:
+        new_bottom = shapes[index].bottom
+    for shape in shapes:
+        shape.bottom = new_bottom
+    return new_bottom
+
+
+def _stack_right(shapes: List[Rectangle], *, sep: float) -> (float, float):
+    """ Returns last elem's position """
+    self = None
+    for i in range(len(shapes)):
+        if i == 0:
+            continue
+        self = shapes[i]
+        prev = shapes[i - 1]
+        self.center_x = prev.center_x + round(prev.width / 2 + sep +
+                                              self.width / 2, PRECISION)
+    assert self is not None, 'For one key set it directly'
+    return self.position
+
+
+def _create_keys(symbols: List[int], width: float, height: float,
+                 **kwargs) -> List[Key]:
+    """  Specify specific width & height using kwargs """
     out = []
-    for key in keys:
-        if _kv2n(key) in kwargs:
-            size = kwargs[_kv2n(key)]
+    posn = kwargs.pop('position', (0, 0))
+    scaling = kwargs.pop('scaling', 1)
+    for symbol in symbols:
+        if _kv2n(symbol) in kwargs:
+            size = kwargs[_kv2n(symbol)]
             assert isinstance(size, tuple)
-            out.append(Key(size[0], size[1], symbol=key))
+            out.append(Key(*posn, size[0] * scaling, size[1] * scaling, symbol, **kwargs))
         else:
-            out.append(Key(width, height, symbol=key))
+            out.append(Key(*posn, width * scaling, height * scaling, symbol, **kwargs))
     return out
 
 
-def _init_key_posn(keys: List[Key], first_posn: Tuple[float, float]):
-    for i in range(len(keys)):
-        if i == 0:
-            keys[i].position = first_posn
-            continue
-        self = keys[i]
-        prev = keys[i-1]
-        self.position = (round(prev.center_x + prev.width / 2 + self.width / 2 + sep, 10), first_posn[1])
-
-
-def _create_small_notebook_keys(verbose=False) -> Dict[int, Key]:
-
-    size_normal_keys = (1.125, 1.125)
-    size_f_keys = (1.075, 0.725)
+def _create_small_notebook_keys(verbose=False, **kwargs) -> Dict[int, Key]:
+    color = kwargs.pop('key_color', arcade.color.BLACK)
+    alpha = kwargs.pop('key_alpha', 255)
+    size_normal = (1.125, 1.125)
+    size_f = (1.075, 0.725)
     size_arrow_keys = (1.075, 0.525)
 
     key_plan = [[LCTRL, FN, LWINDOWS, LALT, SPACE, RALT, RCTRL],
@@ -72,34 +251,69 @@ def _create_small_notebook_keys(verbose=False) -> Dict[int, Key]:
                          {'TAB': (1.425, 1.125), 'BACKSLASH': (1.275, 1.125)},
                          {'GRAVE': (0.825, 1.125), 'BACKSPACE': (1.875, 1.125)},
                          {}]
+    arrow_keys = [[LEFT, DOWN, RIGHT],
+                  [UP]]
 
-    out = []
-    # create keys in row 0-4
-    for i in range(5):
-        temp = _create_keys(key_plan[i], *size_normal_keys, **special_key_sizes[i])
-        _init_key_posn(temp, (temp[0].width / 2, temp[0].height / 2 + i * 1.2))
-        out += temp
-        if verbose:
-            [print(key) for key in temp]
-            print()
-    # create F keys (row 5)
-    temp = _create_keys(key_plan[5], *size_f_keys)
-    _init_key_posn(temp, (temp[0].width / 2, 6.3625))
-    out += temp
-    if verbose:
-        [print(key) for key in temp]
-        print()
+    out = []  # type: List[List]
+    # create keys in row 1
+    temp = _create_keys(key_plan[0], *size_normal, **special_key_sizes[0],
+                        scaling=SCALING, color=color, alpha=alpha)
+    temp[0].left = 0
+    temp[0].bottom = 0
+    _stack_right(temp, sep=SEP * SCALING)
+    _align_bottom(temp)
+    out.append(temp)
+
     # create arrow keys
-    temp = _create_keys([LEFT, DOWN, RIGHT, UP], *size_arrow_keys)
-    _init_key_posn(temp[:3], (14.3375, size_arrow_keys[1] / 2))
-    temp[3].position = (round(14.3375 + size_arrow_keys[0] + sep, 10), 0.8625)
-    out += temp
-    if verbose:
-        [print(key) for key in temp]
-        print()
+    temp = _create_keys(arrow_keys[0], *size_arrow_keys,
+                        scaling=SCALING, color=color, alpha=alpha)
+    temp[0].left = out[0][-1].right + SEP * SCALING
+    temp[0].bottom = out[0][-1].bottom
+    _stack_right(temp, sep=SEP * SCALING)
+    _align_bottom(temp)
+    out2 = temp  # type: List
+
+    scaled_size = size_arrow_keys[0] * SCALING, size_arrow_keys[1] * SCALING
+    temp = Key(temp[1].center_x, 0, *scaled_size, UP, color=color, alpha=alpha)
+    temp.bottom = out2[1].top + SEP * SCALING
+    out2.append(temp)
+
+    # create keys in row 1-4
+    for i in range(1, 5):
+        temp = _create_keys(key_plan[i], *size_normal, **special_key_sizes[i],
+                            scaling=SCALING, color=color, alpha=alpha)
+        temp[0].left = 0
+        temp[0].bottom = out[i - 1][0].top + SEP * SCALING
+        _stack_right(temp, sep=SEP * SCALING)
+        _align_bottom(temp)
+        out.append(temp)
+
+    # create F keys (row 5)
+    temp = _create_keys(key_plan[5], *size_f,
+                        scaling=SCALING, color=color, alpha=alpha)
+    temp[0].left = 0
+    temp[0].bottom = out[4][0].top + SEP * SCALING
+    _stack_right(temp, sep=SEP * SCALING)
+    _align_bottom(temp)
+    out.append(temp)
 
     d = {}
-    for elem in out:
+    # remove after finish
+    if verbose:
+        for lst in out:
+            for elem in lst:
+                d[elem.symbol] = elem
+                print(elem)
+            print()
+        for elem in out2:
+            d[elem.symbol] = elem
+            print(elem)
+        return d
+
+    for lst in out:
+        for elem in lst:
+            d[elem.symbol] = elem
+    for elem in out2:
         d[elem.symbol] = elem
     return d
 
@@ -124,20 +338,19 @@ def _create_mechanical_keys() -> Dict[int, Key]:
 
 class KeyboardModel:
     """ Representation of a keyboard without graphics """
-    def __init__(self, type='small notebook'):
+
+    def __init__(self, *, model: str, **kwargs):
         self.keys = {'small notebook': _create_small_notebook_keys,
                      'large notebook': _create_large_notebook_keys,
-                     'mechanical': _create_mechanical_keys}[type]()
-        self.width, self.height = {'small notebook': (18.05, 7.6),
-                                   'large notebook': (22.85, 7.6),
-                                   'mechanical': (23.4, 9.0)}[type]
-        self.scaling = SCALING
+                     'mechanical': _create_mechanical_keys}[model](**kwargs)
+        self.width, self.height, self.edge = {'small notebook': (18.05, 7.6, 0.4375),
+                                              'large notebook': (22.85, 7.6, 0.4375),
+                                              'mechanical': (23.4, 9.0, 0.6)}[model]
 
 
 class ShapeGroup:
-    def __init__(self, shapes: List[arcade.Shape], center_x: float = None, center_y: float = None, **kwargs):
+    def __init__(self, shapes: List, center_x: float = None, center_y: float = None, **kwargs):
         if center_x is None or center_y is None:
-            # TODO find center and boundary of overall shape
             raise NotImplementedError
         else:
             self.position = (center_x, center_y)
@@ -145,24 +358,30 @@ class ShapeGroup:
         self.width = kwargs.pop('width', 1)
         self.height = kwargs.pop('height', 1)
 
+    def update(self):
+        for shape in self._shapes:
+            shape.update()
+
     def draw(self):
         for shape in self._shapes:
             shape.draw()
 
 
-def create_keyboard_shape(center_x: float, center_y: float) -> ShapeGroup:
-    keyboard = KeyboardModel()
-    width, height = keyboard.width, keyboard.height
-    keys = keyboard.keys
-    bounding_box = arcade.create_rectangle_filled(center_x, center_y,
-                                                  width*SCALING, height*SCALING, color=arcade.color.DARK_BLUE_GRAY)
-    shapes = [bounding_box]
-    origin = (center_x - (width/2 - .4375)*SCALING, center_y - (height/2 - .4375)*SCALING)
-    for key in keys.values():
-        temp = arcade.create_rectangle_filled(origin[0] + key.center_x*SCALING, origin[1] + key.center_y*SCALING,
-                                              key.width*SCALING, key.height*SCALING, color=arcade.color.LIGHT_BLUE)
-        shapes.append(temp)
-    return ShapeGroup(shapes, center_x, center_y, width=width, height=height)
+def create_keyboard_shape(center_x: float, center_y: float, **kwargs) -> ShapeGroup:
+    model = kwargs.pop('model', 'small notebook')
+    color = kwargs.pop('color', arcade.color.BLUE)
+    key_color = kwargs.pop('key_color', arcade.color.BLACK)
+    key_alpha = kwargs.pop('key_alpha', 150)
 
+    keyboard = KeyboardModel(model=model, key_color=key_color, key_alpha=key_alpha)
 
+    width = keyboard.width * SCALING
+    height = keyboard.height * SCALING
 
+    bounding_box = Rectangle(center_x, center_y, width, height, color=color, alpha=150)
+    shapes = [bounding_box] + list(keyboard.keys.values())
+    origin_vector = (bounding_box.left + keyboard.edge * SCALING,
+                     bounding_box.bottom + keyboard.edge * SCALING)
+    for key in keyboard.keys.values():
+        key.change_position(*origin_vector)
+    return ShapeGroup(shapes, center_x, center_y, width=keyboard.width, height=keyboard.height)

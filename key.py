@@ -1,4 +1,4 @@
-from typing import Union, Tuple, List, Dict
+from typing import Union
 
 from arcade.key import *
 
