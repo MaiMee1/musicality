@@ -1,5 +1,6 @@
 """
-Due to limitations from the arcade library, the fn key does not work.
+Due to limitations from the arcade library, the FN key does not work.
+Due to some bindings, RSHIFT registers as LSHIFT in this laptop's keybaord.
 """
 from typing import Dict
 
@@ -9,10 +10,18 @@ from arcade.arcade_types import *
 from key import *
 from key import _kn2v, _kv2n
 
-SCALING_CONSTANT = 3
+SCALING_CONSTANT = 1
 SEP = 0.075
 SCALING = SCALING_CONSTANT / SEP
 PRECISION = 10
+
+COLOR_REC_DEFAULT = arcade.color.BLACK
+
+
+def set_scaling(new_value):
+    global SCALING_CONSTANT, SCALING
+    SCALING_CONSTANT = new_value
+    SCALING = SCALING_CONSTANT / SEP
 
 
 class Rectangle:
@@ -22,13 +31,12 @@ class Rectangle:
         self.height = height
         self._position = [center_x, center_y]
 
-        self.color = kwargs.pop('color', arcade.color.WHITE)  # type: Color
+        self.color = kwargs.pop('color', COLOR_REC_DEFAULT)  # type: Color
         self.alpha = kwargs.pop('alpha', 255)  # type: int
         self.border_width = kwargs.pop('border_width', 1)  # type: float
         self.tilt_angle = kwargs.pop('tilt_angle', 0)  # type: float
 
         self.shape = None  # type: arcade.Shape
-        self.update()
 
     def __str__(self):
         return f"size: {self.size} posn: {self._position}"
@@ -57,7 +65,7 @@ class Rectangle:
 
     center_y = property(_get_center_y, _set_center_y)
 
-    def change_position(self, delta_x: float, delta_y: float) -> (float, float):
+    def move(self, delta_x: float, delta_y: float) -> (float, float):
         """ Returns new position """
         self.center_x += delta_x
         self.center_y += delta_y
@@ -122,14 +130,26 @@ class Rectangle:
 
 
 class Key(Rectangle):
+    COLOR_PRESSED = arcade.color.GRAY, 150
+    COLOR_NORMAL = arcade.color.WHITE, 255
+
     def __init__(self, center_x: float, center_y: float, width: float,
                  height: float, symbol: int, **kwargs):
+        kwargs['color'], kwargs['alpha'] = Key.COLOR_NORMAL
         super().__init__(center_x, center_y, width, height, **kwargs)
 
         self.symbol = symbol
 
     def __str__(self):
         return f"key constant: {self.symbol} size: {self.size} posn: {self._position}"
+
+    def on_key_press(self, symbol: int, modifiers: int):
+        assert symbol == self.symbol
+        self.color, self.alpha = Key.COLOR_PRESSED
+
+    def on_key_release(self, symbol: int, modifiers: int):
+        assert symbol == self.symbol
+        self.color, self.alpha = Key.COLOR_NORMAL
 
 
 def _align_center_x(shapes: List[Rectangle], index: int = 0, most=False) -> float:
@@ -336,52 +356,37 @@ def _create_mechanical_keys() -> Dict[int, Key]:
     raise NotImplementedError
 
 
-class KeyboardModel:
-    """ Representation of a keyboard without graphics """
+class Keyboard(Rectangle):
+    def __init__(self, center_x, center_y, *, model: str, **kwargs):
+        model = model
+        assert model in ('small notebook', 'large notebook', 'mechanical')
+        key_color = kwargs.pop('key_color', arcade.color.WHITE)
+        key_alpha = kwargs.pop('key_alpha', 255)
 
-    def __init__(self, *, model: str, **kwargs):
+        width, height, self.edge = {'small notebook': (18.05, 7.6, 0.4375),
+                                    'large notebook': (22.85, 7.6, 0.4375),
+                                    'mechanical': (23.4, 9.0, 0.6)}[model]
+        super().__init__(center_x, center_y, width * SCALING, height * SCALING, **kwargs)
         self.keys = {'small notebook': _create_small_notebook_keys,
                      'large notebook': _create_large_notebook_keys,
-                     'mechanical': _create_mechanical_keys}[model](**kwargs)
-        self.width, self.height, self.edge = {'small notebook': (18.05, 7.6, 0.4375),
-                                              'large notebook': (22.85, 7.6, 0.4375),
-                                              'mechanical': (23.4, 9.0, 0.6)}[model]
+                     'mechanical': _create_mechanical_keys}[model](key_color=key_color, key_alpha=key_alpha)
 
-
-class ShapeGroup:
-    def __init__(self, shapes: List, center_x: float = None, center_y: float = None, **kwargs):
-        if center_x is None or center_y is None:
-            raise NotImplementedError
-        else:
-            self.position = (center_x, center_y)
-        self._shapes = shapes
-        self.width = kwargs.pop('width', 1)
-        self.height = kwargs.pop('height', 1)
+        lower_left_z_key = (self.left + self.edge * SCALING, self.bottom + self.edge * SCALING)
+        for key in self.keys.values():
+            key.move(*lower_left_z_key)
 
     def update(self):
-        for shape in self._shapes:
-            shape.update()
+        super().update()
+        for key in self.keys.values():
+            key.update()
 
     def draw(self):
-        for shape in self._shapes:
-            shape.draw()
+        super().draw()
+        for key in self.keys.values():
+            key.draw()
 
+    def on_key_press(self, symbol: int, modifiers: int):
+        self.keys[symbol].on_key_press(symbol, modifiers)
 
-def create_keyboard_shape(center_x: float, center_y: float, **kwargs) -> ShapeGroup:
-    model = kwargs.pop('model', 'small notebook')
-    color = kwargs.pop('color', arcade.color.BLUE)
-    key_color = kwargs.pop('key_color', arcade.color.BLACK)
-    key_alpha = kwargs.pop('key_alpha', 150)
-
-    keyboard = KeyboardModel(model=model, key_color=key_color, key_alpha=key_alpha)
-
-    width = keyboard.width * SCALING
-    height = keyboard.height * SCALING
-
-    bounding_box = Rectangle(center_x, center_y, width, height, color=color, alpha=150)
-    shapes = [bounding_box] + list(keyboard.keys.values())
-    origin_vector = (bounding_box.left + keyboard.edge * SCALING,
-                     bounding_box.bottom + keyboard.edge * SCALING)
-    for key in keyboard.keys.values():
-        key.change_position(*origin_vector)
-    return ShapeGroup(shapes, center_x, center_y, width=keyboard.width, height=keyboard.height)
+    def on_key_release(self, symbol: int, modifiers: int):
+        self.keys[symbol].on_key_release(symbol, modifiers)
