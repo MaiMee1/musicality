@@ -3,12 +3,15 @@ Due to limitations from the arcade library, the FN key does not work.
 Due to some bindings, RSHIFT registers as LSHIFT in this laptop's keybaord.
 """
 from typing import Dict
+from typing import NewType
 
 import arcade
 from arcade.arcade_types import *
 
 from key import *
 from key import _kn2v, _kv2n
+
+Drawable = NewType('Drawable', Union[arcade.Shape, arcade.Shape, arcade.ShapeElementList, 'Rectangle'])
 
 SCALING_CONSTANT = 1
 SEP = 0.075
@@ -37,6 +40,8 @@ class Rectangle:
         self.tilt_angle = kwargs.pop('tilt_angle', 0)  # type: float
 
         self.shape = None  # type: arcade.Shape
+
+        self.update_rate = 1/60
 
     def __str__(self):
         return f"size: {self.size} posn: {self._position}"
@@ -128,10 +133,13 @@ class Rectangle:
     def draw(self):
         self.shape.draw()
 
+    def set_update_rate(self, rate: float):
+        self.update_rate = rate
+
 
 class Key(Rectangle):
-    COLOR_PRESSED = arcade.color.GRAY, 150
-    COLOR_NORMAL = arcade.color.WHITE, 255
+    COLOR_PRESSED = arcade.color.WHITE, 255
+    COLOR_NORMAL = arcade.color.BLACK, 150
 
     def __init__(self, center_x: float, center_y: float, width: float,
                  height: float, symbol: int, **kwargs):
@@ -139,6 +147,7 @@ class Key(Rectangle):
         super().__init__(center_x, center_y, width, height, **kwargs)
 
         self.symbol = symbol
+        self._to_draw = []  # type: List[arcade.Shape]
 
     def __str__(self):
         return f"key constant: {self.symbol} size: {self.size} posn: {self._position}"
@@ -150,6 +159,23 @@ class Key(Rectangle):
     def on_key_release(self, symbol: int, modifiers: int):
         assert symbol == self.symbol
         self.color, self.alpha = Key.COLOR_NORMAL
+
+    def come_in(self, delta_clock: float, rgba_color: Color):
+        rgba_color = arcade.get_four_byte_color(rgba_color)
+        # prep
+        self._to_draw = []
+        for i in range(1, int(delta_clock / self.update_rate) + 1):
+            self._to_draw.append(arcade.create_rectangle(
+                self.center_x, self.center_y,
+                1 + (self.width - 1) * self.update_rate * i / delta_clock,
+                1 + (self.height - 1) * self.update_rate * i / delta_clock,
+                rgba_color,
+                tilt_angle=self.tilt_angle))
+
+    def draw(self):
+        super().draw()
+        if self._to_draw:
+            self._to_draw.pop(0).draw()
 
 
 def _align_center_x(shapes: List[Rectangle], index: int = 0, most=False) -> float:
@@ -386,7 +412,15 @@ class Keyboard(Rectangle):
             key.draw()
 
     def on_key_press(self, symbol: int, modifiers: int):
+        # for testing
         self.keys[symbol].on_key_press(symbol, modifiers)
+        if symbol == Q:
+            self.keys[W].come_in(1/20, arcade.color.GREEN)
 
     def on_key_release(self, symbol: int, modifiers: int):
         self.keys[symbol].on_key_release(symbol, modifiers)
+
+    def set_update_rate(self, rate: float):
+        self.update_rate = rate
+        for key in self.keys.values():
+            key.set_update_rate(rate)

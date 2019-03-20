@@ -11,6 +11,11 @@ Mar 17, 2019 (Sun)  7 hours stuck with keyboard
                     1 hour to display on-screen keyboard and fix some bugs
 Mar 18, 2019 (Mon)  6 hours refactoring keyboard.py, added opacity
 Mar 20, 2019 (Wed)  1/2 hour more refactoring
-                    1/2 hour researching patterns
-Mar 21, 2019 (Thu)  1/2 hour to key response when pressed to figure out what to do next
+Mar 21, 2019 (Thu)  1/2 hour researching patterns
+                    1/2 hour add key response when pressed to figure out what to do next
+                    1 hour add some kind of premature graphic showing when to press, seems to blocky, time
+                            also seems to not be constant. Seems to be working my high-specs laptop a bit
+                            hard too. Should probably research about multithreading and other stuffs. Or use
+                            other alternatives such as pre-made animation/video. Or textures/sprites might be
+                            a better way to go about this.
 """
