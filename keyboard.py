@@ -1,6 +1,7 @@
 """
 Due to limitations from the arcade library, the FN key does not work.
-Due to some bindings, RSHIFT registers as LSHIFT in this laptop's keybaord.
+Due to some bindings, RSHIFT registers as LSHIFT in this laptop's keyboard.
+EDIT: And also others. Seems to be the way library checks instead.
 """
 from typing import Dict
 from typing import NewType
@@ -71,7 +72,7 @@ class Rectangle:
     center_y = property(_get_center_y, _set_center_y)
 
     def move(self, delta_x: float, delta_y: float) -> (float, float):
-        """ Returns new position """
+        """ Return: new position """
         self.center_x += delta_x
         self.center_y += delta_y
         return self.position
@@ -155,10 +156,12 @@ class Key(Rectangle):
     def on_key_press(self, symbol: int, modifiers: int):
         assert symbol == self.symbol
         self.color, self.alpha = Key.COLOR_PRESSED
+        self.update()
 
     def on_key_release(self, symbol: int, modifiers: int):
         assert symbol == self.symbol
         self.color, self.alpha = Key.COLOR_NORMAL
+        self.update()
 
     def come_in(self, delta_clock: float, rgba_color: Color):
         rgba_color = arcade.get_four_byte_color(rgba_color)
@@ -415,7 +418,7 @@ class Keyboard(Rectangle):
         # for testing
         self.keys[symbol].on_key_press(symbol, modifiers)
         if symbol == Q:
-            self.keys[W].come_in(1/20, arcade.color.GREEN)
+            self.keys[W].come_in(1/10, arcade.color.GREEN)
 
     def on_key_release(self, symbol: int, modifiers: int):
         self.keys[symbol].on_key_release(symbol, modifiers)

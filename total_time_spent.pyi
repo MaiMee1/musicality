@@ -18,4 +18,6 @@ Mar 21, 2019 (Thu)  1/2 hour researching patterns
                             hard too. Should probably research about multithreading and other stuffs. Or use
                             other alternatives such as pre-made animation/video. Or textures/sprites might be
                             a better way to go about this.
+Mar 22, 2019 (Fri)  2 hours until I remember to implement the thing I thought of. Solved the FPS problem.
+                            No need to read pyglet for now. (except for time) I guess.
 """

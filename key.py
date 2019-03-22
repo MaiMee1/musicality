@@ -394,6 +394,7 @@ FN = LFN = RFN = 0
 
 
 def _kn2v(name: str) -> Union[int, None]:
+    """ keynames to key values, None if DNE """
     try:
         return KEY_VALUES[KEY_NAMES.index(name)]
     except ValueError:
@@ -401,6 +402,7 @@ def _kn2v(name: str) -> Union[int, None]:
 
 
 def _kv2n(value: int) -> Union[str, None]:
+    """ key values to keynames, None if DNE """
     try:
         return KEY_NAMES[KEY_VALUES.index(value)]
     except ValueError:
