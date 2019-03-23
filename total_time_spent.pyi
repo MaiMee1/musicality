@@ -20,4 +20,5 @@ Mar 21, 2019 (Thu)  1/2 hour researching patterns
                             a better way to go about this.
 Mar 22, 2019 (Fri)  2 hours until I remember to implement the thing I thought of. Solved the FPS problem.
                             No need to read pyglet for now. (except for time) I guess.
+                    2 hours refactoring things about key.
 """

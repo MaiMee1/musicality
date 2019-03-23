@@ -371,12 +371,6 @@ def _create_large_notebook_keys() -> Dict[int, Key]:
 
 
 def _create_mechanical_keys() -> Dict[int, Key]:
-    # row_0 = [LCTRL, LWINDOWS, LALT, SPACE, RALT, RWINDOWS, MENU, RCTRL]
-    # row_1 = [LSHIFT, Z, X, C, V, B, N, M, COMMA, PERIOD, SLASH, RSHIFT]
-    # row_2 = [CAPSLOCK, A, S, D, F, G, H, J, K, L, SEMICOLON, APOSTROPHE, ENTER]
-    # row_3 = [TAB, Q, W, E, R, T, Y, U, I, O, P, BRACKETLEFT, BRACERIGHT, BACKSLASH]
-    # row_4 = [GRAVE, KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0, MINUS, EQUAL, BACKSPACE]
-    # row_5 = [ESCAPE, F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12]
     # center_cluster = [PRINT, SCROLLLOCK, PAUSE,
     #                   INSERT, HOME, PAGEUP,
     #                   DELETE, END, PAGEDOWN]

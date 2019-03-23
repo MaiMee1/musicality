@@ -430,8 +430,7 @@ key_plan = {
         [TAB, Q, W, E, R, T, Y, U, I, O, P, BRACKETLEFT, BRACKETRIGHT, BACKSLASH],
         [GRAVE, _1, _2, _3, _4, _5, _6, _7, _8, _9, _0, MINUS, EQUAL, BACKSPACE],
         [ESCAPE, F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12, INSERT, DELETE]),
-    # FIXME: the key plan is not standard
-    'large notebook': (
+    'large notebook': (  # FIXME: the key plan is not standard
         [LCTRL, FUNCTION, LWINDOWS, LALT, SPACE, RALT, RCTRL, LEFT, DOWN, RIGHT,
          NUM_0, NUM_DELETE, NUM_ENTER],
         [LSHIFT, Z, X, C, V, B, N, M, COMMA, PERIOD, SLASH, RSHIFT,
@@ -442,5 +441,13 @@ key_plan = {
          NUM_7, NUM_8, NUM_9],
         [GRAVE, _1, _2, _3, _4, _5, _6, _7, _8, _9, _0, MINUS, EQUAL, BACKSPACE,
          NUMLOCK, NUM_DIVIDE, NUM_MULTIPLY, NUM_SUBTRACT],
-        [ESCAPE, F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12, INSERT, DELETE, ]),
-    'mechanical': ()}
+        [ESCAPE, F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12, INSERT, DELETE,
+         HOME, END, PAGEUP, PAGEDOWN]),
+    'mechanical': (
+        [LCTRL, LWINDOWS, LALT, SPACE, RALT, RWINDOWS, MENU, RCTRL],
+        [LSHIFT, Z, X, C, V, B, N, M, COMMA, PERIOD, SLASH, RSHIFT],
+        [CAPSLOCK, A, S, D, F, G, H, J, K, L, SEMICOLON, APOSTROPHE, ENTER],
+        [TAB, Q, W, E, R, T, Y, U, I, O, P, BRACKETLEFT, BRACERIGHT, BACKSLASH],
+        [GRAVE, _1, _2, _3, _4, _5, _6, _7, _8, _9, _0, MINUS, EQUAL, BACKSPACE],
+        [ESCAPE, F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12]
+    )}
