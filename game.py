@@ -38,7 +38,7 @@ class GameWindow(arcade.Window):
         arcade.set_background_color(arcade.color.BLACK)
 
         keyboard.set_scaling(5)
-        self.keyboard = keyboard.Keyboard(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 3,
+        self.keyboard = keyboard.Keyboard(width // 2, height // 3,
                                           model='small notebook',
                                           color=arcade.color.LIGHT_BLUE,
                                           alpha=150)
@@ -58,8 +58,15 @@ class GameWindow(arcade.Window):
         arcade.draw_text(output, 100, SCREEN_HEIGHT//2, arcade.color.WHITE, 16)
         self.fps.tick()
 
+    def on_resize(self, width: float, height: float):
+        self.keyboard = keyboard.Keyboard(width // 2, height // 3,
+                                          model='small notebook',
+                                          color=arcade.color.LIGHT_BLUE,
+                                          alpha=150)
+        self.keyboard.update()
+
     def on_key_press(self, symbol: int, modifiers: int):
-        print(symbol, modifiers)
+        # print(symbol, modifiers)
         if symbol == 99 and modifiers & 1 and modifiers & 2:  # CTRL + SHIFT + C to close
                                                               # for fullscreen emergency
             # TODO: Find a good way to exit

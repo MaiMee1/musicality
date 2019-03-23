@@ -4,14 +4,11 @@ Due to some bindings, RSHIFT registers as LSHIFT in this laptop's keyboard.
 EDIT: And also others. Seems to be the way library checks instead.
 """
 from typing import Dict
-from typing import NewType
 
 import arcade
 from arcade.arcade_types import *
 
 import key
-
-Drawable = NewType('Drawable', Union[arcade.Shape, arcade.Shape, arcade.ShapeElementList, 'Rectangle'])
 
 SCALING_CONSTANT = 1
 SEP = 0.075
