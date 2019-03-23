@@ -1,6 +1,9 @@
-from typing import Union
+from typing import Union, Dict, Any
 
-from arcade.key import *
+from pyglet.window.key import *
+from pyglet.window.key import _0, _1, _2, _3, _4, _5, _6, _7, _8, _9
+from pyglet.window.key import _key_names
+
 
 KEY_NAMES = ['BACKSPACE',
              'TAB',
@@ -192,8 +195,7 @@ KEY_NAMES = ['BACKSPACE',
              'BAR',
              'BRACERIGHT',
              'ASCIITILDE',
-             # self defined
-             'FN']
+             ]
 KEY_VALUES = [65288,
               65289,
               65290,
@@ -384,26 +386,61 @@ KEY_VALUES = [65288,
               124,
               125,
               126,
-              # self created
-              0]
-
-# LGUI = LWINDOWS
-# RGUI = RWINDOWS
-# APP = MENU
-FN = LFN = RFN = 0
+              ]
 
 
-def _kn2v(name: str) -> Union[int, None]:
-    """ keynames to key values, None if DNE """
+_synonyms = {'HASH': 'POUND', 'GRAVE': 'QUOTELEFT', 'RETURN': 'ENTER'}
+
+
+def kn2v(name: str) -> Union[int, None]:
+    """ From key_name, return symbol; None if DNE """
     try:
+        symbol = KEY_VALUES[KEY_NAMES.index(name)]
+        assert name == symbol_string(symbol)
         return KEY_VALUES[KEY_NAMES.index(name)]
     except ValueError:
         return
 
 
-def _kv2n(value: int) -> Union[str, None]:
-    """ key values to keynames, None if DNE """
-    try:
-        return KEY_NAMES[KEY_VALUES.index(value)]
-    except ValueError:
-        return
+def is_key_name(name: str) -> bool:
+    if name in _key_names:
+        return True
+    if name in _synonyms:
+        return True
+    return False
+
+
+def add_synonyms(kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    """ Add standard key's name to kwargs if given non-standard key's name """
+    for k in kwargs:
+        try:
+            kwargs[_synonyms[k]] = kwargs[k]
+        except KeyError:
+            pass
+    return kwargs
+
+
+kv2n = symbol_string
+
+key_plan = {
+    'small notebook': (
+        [LCTRL, FUNCTION, LWINDOWS, LALT, SPACE, RALT, RCTRL],
+        [LSHIFT, Z, X, C, V, B, N, M, COMMA, PERIOD, SLASH, RSHIFT],
+        [CAPSLOCK, A, S, D, F, G, H, J, K, L, SEMICOLON, APOSTROPHE, ENTER],
+        [TAB, Q, W, E, R, T, Y, U, I, O, P, BRACKETLEFT, BRACKETRIGHT, BACKSLASH],
+        [GRAVE, _1, _2, _3, _4, _5, _6, _7, _8, _9, _0, MINUS, EQUAL, BACKSPACE],
+        [ESCAPE, F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12, INSERT, DELETE]),
+    # FIXME: the key plan is not standard
+    'large notebook': (
+        [LCTRL, FUNCTION, LWINDOWS, LALT, SPACE, RALT, RCTRL, LEFT, DOWN, RIGHT,
+         NUM_0, NUM_DELETE, NUM_ENTER],
+        [LSHIFT, Z, X, C, V, B, N, M, COMMA, PERIOD, SLASH, RSHIFT,
+         NUM_1, NUM_2, NUM_3],
+        [CAPSLOCK, A, S, D, F, G, H, J, K, L, SEMICOLON, APOSTROPHE, ENTER,
+         NUM_4, NUM_5, NUM_6, NUM_ADD],
+        [TAB, Q, W, E, R, T, Y, U, I, O, P, BRACKETLEFT, BRACKETRIGHT, BACKSLASH,
+         NUM_7, NUM_8, NUM_9],
+        [GRAVE, _1, _2, _3, _4, _5, _6, _7, _8, _9, _0, MINUS, EQUAL, BACKSPACE,
+         NUMLOCK, NUM_DIVIDE, NUM_MULTIPLY, NUM_SUBTRACT],
+        [ESCAPE, F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12, INSERT, DELETE, ]),
+    'mechanical': ()}

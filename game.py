@@ -5,12 +5,11 @@ import pyglet
 
 import keyboard
 
+from pyglet import clock
+
 SCREEN_WIDTH = 1920
 SCREEN_HEIGHT = 1000
 SCREEN_TITLE = "Game Window"
-
-
-from pyglet import clock
 
 
 class FPSCounter:
@@ -44,15 +43,14 @@ class GameWindow(arcade.Window):
                                           color=arcade.color.LIGHT_BLUE,
                                           alpha=150)
         self.update_rate = 1/60
-        self._set_update_rate(1/180)
+        self._set_update_rate(1/60)
         self.fps = FPSCounter()
-        self.dt = clock.tick()
         self.keyboard.update()
 
     def on_draw(self):
         arcade.start_render()
-        # self.keyboard.update()
         self.keyboard.draw()
+
         fps = self.fps.get_fps()
         output = f"FPS: {fps:3.0f}"
         arcade.draw_text(output, 20, SCREEN_HEIGHT//2, arcade.color.WHITE, 16)
@@ -61,10 +59,10 @@ class GameWindow(arcade.Window):
         self.fps.tick()
 
     def on_key_press(self, symbol: int, modifiers: int):
-        # print(symbol, modifiers)
-        if symbol == 99 and modifiers in (7, 11, 19, 35, 67, 131, 259):     # CTRL + SHIFT + C to close
-                                                                            # for fullscreen emergency
-            # TODO: Find a good exit way
+        print(symbol, modifiers)
+        if symbol == 99 and modifiers & 1 and modifiers & 2:  # CTRL + SHIFT + C to close
+                                                              # for fullscreen emergency
+            # TODO: Find a good way to exit
             pyglet.app.exit()
         self.keyboard.on_key_press(symbol, modifiers)
 

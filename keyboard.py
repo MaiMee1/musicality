@@ -9,8 +9,7 @@ from typing import NewType
 import arcade
 from arcade.arcade_types import *
 
-from key import *
-from key import _kn2v, _kv2n
+import key
 
 Drawable = NewType('Drawable', Union[arcade.Shape, arcade.Shape, arcade.ShapeElementList, 'Rectangle'])
 
@@ -126,6 +125,9 @@ class Rectangle:
         return self.width, self.height
 
     def update(self):
+        self.redraw()
+
+    def redraw(self):
         self.shape = arcade.create_rectangle(self.center_x, self.center_y,
                                              self.width, self.height,
                                              self.rgba_color,
@@ -271,9 +273,11 @@ def _create_keys(symbols: List[int], width: float, height: float,
     out = []
     posn = kwargs.pop('position', (0, 0))
     scaling = kwargs.pop('scaling', 1)
+    kwargs = key.add_synonyms(kwargs)
     for symbol in symbols:
-        if _kv2n(symbol) in kwargs:
-            size = kwargs[_kv2n(symbol)]
+        key_name = key.symbol_string(symbol)
+        if key_name in kwargs:
+            size = kwargs[key_name]
             assert isinstance(size, tuple)
             out.append(Key(*posn, size[0] * scaling, size[1] * scaling, symbol, **kwargs))
         else:
@@ -288,23 +292,18 @@ def _create_small_notebook_keys(verbose=False, **kwargs) -> Dict[int, Key]:
     size_f = (1.075, 0.725)
     size_arrow_keys = (1.075, 0.525)
 
-    key_plan = [[LCTRL, FN, LWINDOWS, LALT, SPACE, RALT, RCTRL],
-                [LSHIFT, Z, X, C, V, B, N, M, COMMA, PERIOD, SLASH, RSHIFT],
-                [CAPSLOCK, A, S, D, F, G, H, J, K, L, SEMICOLON, APOSTROPHE, ENTER],
-                [TAB, Q, W, E, R, T, Y, U, I, O, P, BRACKETLEFT, BRACERIGHT, BACKSLASH],
-                [GRAVE, KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0, MINUS, EQUAL, BACKSPACE],
-                [ESCAPE, F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12, INSERT, DELETE]]
+    key_plan = key.key_plan['small notebook']
     special_key_sizes = [{'SPACE': (6.525, 1.125)},
                          {'LSHIFT': (2.325, 1.125), 'RSHIFT': (2.775, 1.125)},
                          {'CAPSLOCK': (1.725, 1.125), 'ENTER': (2.175, 1.125)},
                          {'TAB': (1.425, 1.125), 'BACKSLASH': (1.275, 1.125)},
-                         {'GRAVE': (0.825, 1.125), 'BACKSPACE': (1.875, 1.125)},
+                         {'QUOTELEFT': (0.825, 1.125), 'BACKSPACE': (1.875, 1.125)},  # GRAVE -> QUOTELEFT
                          {}]
-    arrow_keys = [[LEFT, DOWN, RIGHT],
-                  [UP]]
+    arrow_keys = [[key.LEFT, key.DOWN, key.RIGHT],
+                  [key.UP]]
 
     out = []  # type: List[List]
-    # create keys in row 1
+    # create keys in row 0
     temp = _create_keys(key_plan[0], *size_normal, **special_key_sizes[0],
                         scaling=SCALING, color=color, alpha=alpha)
     temp[0].left = 0
@@ -323,7 +322,7 @@ def _create_small_notebook_keys(verbose=False, **kwargs) -> Dict[int, Key]:
     out2 = temp  # type: List
 
     scaled_size = size_arrow_keys[0] * SCALING, size_arrow_keys[1] * SCALING
-    temp = Key(temp[1].center_x, 0, *scaled_size, UP, color=color, alpha=alpha)
+    temp = Key(temp[1].center_x, 0, *scaled_size, key.UP, color=color, alpha=alpha)
     temp.bottom = out2[1].top + SEP * SCALING
     out2.append(temp)
 
@@ -401,24 +400,27 @@ class Keyboard(Rectangle):
                      'mechanical': _create_mechanical_keys}[model](key_color=key_color, key_alpha=key_alpha)
 
         lower_left_z_key = (self.left + self.edge * SCALING, self.bottom + self.edge * SCALING)
-        for key in self.keys.values():
-            key.move(*lower_left_z_key)
+        for k in self.keys.values():
+            k.move(*lower_left_z_key)
 
     def update(self):
         super().update()
-        for key in self.keys.values():
-            key.update()
+        for k in self.keys.values():
+            k.update()
 
     def draw(self):
         super().draw()
-        for key in self.keys.values():
-            key.draw()
+        for k in self.keys.values():
+            k.draw()
 
     def on_key_press(self, symbol: int, modifiers: int):
         # for testing
-        self.keys[symbol].on_key_press(symbol, modifiers)
-        if symbol == Q:
-            self.keys[W].come_in(1/10, arcade.color.GREEN)
+        try:
+            self.keys[symbol].on_key_press(symbol, modifiers)
+        except KeyError:
+            pass
+        if symbol == key.Q:
+            self.keys[key.W].come_in(1, arcade.color.GREEN)
 
     def on_key_release(self, symbol: int, modifiers: int):
         self.keys[symbol].on_key_release(symbol, modifiers)
