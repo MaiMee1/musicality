@@ -1,12 +1,12 @@
 """
-Due to limitations from the arcade library, the FN key does not work.
-Due to some bindings, RSHIFT registers as LSHIFT in this laptop's keyboard.
-EDIT: And also others. Seems to be the way library checks instead.
+Due to limitations of the library (I think), the FN key does not work.
+RSHIFT also registers as LSHIFT in many computer's keyboard.
+
 """
-from typing import Dict
+from typing import Dict, List
 
 import arcade
-from arcade.arcade_types import *
+from arcade.arcade_types import Color
 
 import key
 
@@ -25,8 +25,9 @@ def set_scaling(new_value):
 
 
 class Rectangle:
-    def __init__(self, center_x: float, center_y: float, width: float,
-                 height: float, **kwargs):
+
+    def __init__(self, center_x: float, center_y: float, width: float, height: float, **kwargs):
+
         self.width = width
         self.height = height
         self._position = [center_x, center_y]
@@ -125,10 +126,9 @@ class Rectangle:
         self.redraw()
 
     def redraw(self):
-        self.shape = arcade.create_rectangle(self.center_x, self.center_y,
-                                             self.width, self.height,
-                                             self.rgba_color,
-                                             tilt_angle=self.tilt_angle)
+        self.shape = arcade.create_rectangle(
+            self.center_x, self.center_y, self.width, self.height, self.rgba_color,
+            tilt_angle=self.tilt_angle)
 
     def draw(self):
         self.shape.draw()
@@ -138,11 +138,13 @@ class Rectangle:
 
 
 class Key(Rectangle):
+
     COLOR_PRESSED = arcade.color.WHITE, 255
     COLOR_NORMAL = arcade.color.BLACK, 150
 
     def __init__(self, center_x: float, center_y: float, width: float,
                  height: float, symbol: int, **kwargs):
+
         kwargs['color'], kwargs['alpha'] = Key.COLOR_NORMAL
         super().__init__(center_x, center_y, width, height, **kwargs)
 
@@ -258,8 +260,7 @@ def _stack_right(shapes: List[Rectangle], *, sep: float) -> (float, float):
             continue
         self = shapes[i]
         prev = shapes[i - 1]
-        self.center_x = prev.center_x + round(prev.width / 2 + sep +
-                                              self.width / 2, PRECISION)
+        self.center_x = prev.center_x + round(prev.width/2 + sep + self.width/2, PRECISION)
     assert self is not None, 'For one key set it directly'
     return self.position
 
@@ -276,9 +277,9 @@ def _create_keys(symbols: List[int], width: float, height: float,
         if key_name in kwargs:
             size = kwargs[key_name]
             assert isinstance(size, tuple)
-            out.append(Key(*posn, size[0] * scaling, size[1] * scaling, symbol, **kwargs))
+            out.append(Key(*posn, size[0]*scaling, size[1] * scaling, symbol, **kwargs))
         else:
-            out.append(Key(*posn, width * scaling, height * scaling, symbol, **kwargs))
+            out.append(Key(*posn, width*scaling, height * scaling, symbol, **kwargs))
     return out
 
 
@@ -294,7 +295,7 @@ def _create_small_notebook_keys(verbose=False, **kwargs) -> Dict[int, Key]:
                          {'LSHIFT': (2.325, 1.125), 'RSHIFT': (2.775, 1.125)},
                          {'CAPSLOCK': (1.725, 1.125), 'ENTER': (2.175, 1.125)},
                          {'TAB': (1.425, 1.125), 'BACKSLASH': (1.275, 1.125)},
-                         {'QUOTELEFT': (0.825, 1.125), 'BACKSPACE': (1.875, 1.125)},  # GRAVE -> QUOTELEFT
+                         {'GRAVE': (0.825, 1.125), 'BACKSPACE': (1.875, 1.125)},
                          {}]
     arrow_keys = [[key.LEFT, key.DOWN, key.RIGHT],
                   [key.UP]]
@@ -305,22 +306,22 @@ def _create_small_notebook_keys(verbose=False, **kwargs) -> Dict[int, Key]:
                         scaling=SCALING, color=color, alpha=alpha)
     temp[0].left = 0
     temp[0].bottom = 0
-    _stack_right(temp, sep=SEP * SCALING)
+    _stack_right(temp, sep=SEP*SCALING)
     _align_bottom(temp)
     out.append(temp)
 
     # create arrow keys
     temp = _create_keys(arrow_keys[0], *size_arrow_keys,
                         scaling=SCALING, color=color, alpha=alpha)
-    temp[0].left = out[0][-1].right + SEP * SCALING
+    temp[0].left = out[0][-1].right + SEP*SCALING
     temp[0].bottom = out[0][-1].bottom
-    _stack_right(temp, sep=SEP * SCALING)
+    _stack_right(temp, sep=SEP*SCALING)
     _align_bottom(temp)
     out2 = temp  # type: List
 
     scaled_size = size_arrow_keys[0] * SCALING, size_arrow_keys[1] * SCALING
     temp = Key(temp[1].center_x, 0, *scaled_size, key.UP, color=color, alpha=alpha)
-    temp.bottom = out2[1].top + SEP * SCALING
+    temp.bottom = out2[1].top + SEP*SCALING
     out2.append(temp)
 
     # create keys in row 1-4
@@ -328,8 +329,8 @@ def _create_small_notebook_keys(verbose=False, **kwargs) -> Dict[int, Key]:
         temp = _create_keys(key_plan[i], *size_normal, **special_key_sizes[i],
                             scaling=SCALING, color=color, alpha=alpha)
         temp[0].left = 0
-        temp[0].bottom = out[i - 1][0].top + SEP * SCALING
-        _stack_right(temp, sep=SEP * SCALING)
+        temp[0].bottom = out[i - 1][0].top + SEP*SCALING
+        _stack_right(temp, sep=SEP*SCALING)
         _align_bottom(temp)
         out.append(temp)
 
@@ -338,7 +339,7 @@ def _create_small_notebook_keys(verbose=False, **kwargs) -> Dict[int, Key]:
                         scaling=SCALING, color=color, alpha=alpha)
     temp[0].left = 0
     temp[0].bottom = out[4][0].top + SEP * SCALING
-    _stack_right(temp, sep=SEP * SCALING)
+    _stack_right(temp, sep=SEP*SCALING)
     _align_bottom(temp)
     out.append(temp)
 
@@ -386,11 +387,13 @@ class Keyboard(Rectangle):
                                     'large notebook': (22.85, 7.6, 0.4375),
                                     'mechanical': (23.4, 9.0, 0.6)}[model]
         super().__init__(center_x, center_y, width * SCALING, height * SCALING, **kwargs)
-        self.keys = {'small notebook': _create_small_notebook_keys,
-                     'large notebook': _create_large_notebook_keys,
-                     'mechanical': _create_mechanical_keys}[model](key_color=key_color, key_alpha=key_alpha)
+        self.keys = {
+            'small notebook': _create_small_notebook_keys,
+            'large notebook': _create_large_notebook_keys,
+            'mechanical': _create_mechanical_keys
+        }[model](key_color=key_color, key_alpha=key_alpha)
 
-        lower_left_z_key = (self.left + self.edge * SCALING, self.bottom + self.edge * SCALING)
+        lower_left_z_key = self.left + self.edge*SCALING, self.bottom + self.edge*SCALING
         for k in self.keys.values():
             k.move(*lower_left_z_key)
 
@@ -405,11 +408,12 @@ class Keyboard(Rectangle):
             k.draw()
 
     def on_key_press(self, symbol: int, modifiers: int):
-        # for testing
         try:
             self.keys[symbol].on_key_press(symbol, modifiers)
         except KeyError:
+            # do nothing if key does not exist on keyboard
             pass
+        # for testing
         if symbol == key.Q:
             self.keys[key.W].come_in(1, arcade.color.GREEN)
 

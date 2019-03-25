@@ -1,11 +1,10 @@
-import arcade
 import time
 import collections
+
+import arcade
 import pyglet
 
 import keyboard
-
-from pyglet import clock
 
 SCREEN_WIDTH = 1920
 SCREEN_HEIGHT = 1000
@@ -52,9 +51,9 @@ class GameWindow(arcade.Window):
         self.keyboard.draw()
 
         fps = self.fps.get_fps()
-        output = f"FPS: {fps:3.0f}"
+        output = f"FPS: {fps:.1f}"
         arcade.draw_text(output, 20, SCREEN_HEIGHT//2, arcade.color.WHITE, 16)
-        output = f"FPS2: {clock.get_fps():3.0f}"
+        output = f"FPS2: {pyglet.clock.get_fps():.0f}"
         arcade.draw_text(output, 100, SCREEN_HEIGHT//2, arcade.color.WHITE, 16)
         self.fps.tick()
 
@@ -79,7 +78,6 @@ class GameWindow(arcade.Window):
     def _set_update_rate(self, rate: float):
         self.set_update_rate(rate)
         self.update_rate = rate
-        self.keyboard.set_update_rate(rate)
 
 
 def main():

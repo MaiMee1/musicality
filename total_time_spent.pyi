@@ -18,7 +18,12 @@ Mar 21, 2019 (Thu)  1/2 hour researching patterns
                             hard too. Should probably research about multithreading and other stuffs. Or use
                             other alternatives such as pre-made animation/video. Or textures/sprites might be
                             a better way to go about this.
-Mar 22, 2019 (Fri)  2 hours until I remember to implement the thing I thought of. Solved the FPS problem.
-                            No need to read pyglet for now. (except for time) I guess.
-                    2 hours refactoring things about key.
+Mar 22, 2019 (Fri)  2 hours Temporarily solved the FPS problem. No need to read pyglet for now.
+                            (except for time) I guess.
+Mar 23, 2019 (Sat)  2 hours refactoring things about key.
+                    1/2 hour on_resize() + compatability with other computers
+Mar 24, 2019 (Sun)  1 hour reading pand trying to understand pyglet.clock
+Mar 25, 2019 (Mon)  2 hours re-reading style guides
+                    2 hours reading about project structure
+
 """
