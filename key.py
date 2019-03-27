@@ -1,4 +1,4 @@
-from typing import Any, Union, Optional, Dict
+from typing import Any, Optional, Dict
 
 from pyglet.window.key import *
 from pyglet.window.key import _0, _1, _2, _3, _4, _5, _6, _7, _8, _9
@@ -430,7 +430,8 @@ key_plan = {
         [CAPSLOCK, A, S, D, F, G, H, J, K, L, SEMICOLON, APOSTROPHE, ENTER],
         [TAB, Q, W, E, R, T, Y, U, I, O, P, BRACKETLEFT, BRACKETRIGHT, BACKSLASH],
         [GRAVE, _1, _2, _3, _4, _5, _6, _7, _8, _9, _0, MINUS, EQUAL, BACKSPACE],
-        [ESCAPE, F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12, INSERT, DELETE]),
+        [ESCAPE, F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12, INSERT, DELETE]
+    ),
     'large notebook': (
         # FIXME: the key plan is not standard
         [LCTRL, FUNCTION, LWINDOWS, LALT, SPACE, RALT, RCTRL, LEFT, DOWN, RIGHT,
@@ -444,12 +445,26 @@ key_plan = {
         [GRAVE, _1, _2, _3, _4, _5, _6, _7, _8, _9, _0, MINUS, EQUAL, BACKSPACE,
          NUMLOCK, NUM_DIVIDE, NUM_MULTIPLY, NUM_SUBTRACT],
         [ESCAPE, F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12, INSERT, DELETE,
-         HOME, END, PAGEUP, PAGEDOWN]),
+         HOME, END, PAGEUP, PAGEDOWN]
+    ),
     'mechanical': (
         [LCTRL, LWINDOWS, LALT, SPACE, RALT, RWINDOWS, MENU, RCTRL],
         [LSHIFT, Z, X, C, V, B, N, M, COMMA, PERIOD, SLASH, RSHIFT],
         [CAPSLOCK, A, S, D, F, G, H, J, K, L, SEMICOLON, APOSTROPHE, ENTER],
         [TAB, Q, W, E, R, T, Y, U, I, O, P, BRACKETLEFT, BRACERIGHT, BACKSLASH],
         [GRAVE, _1, _2, _3, _4, _5, _6, _7, _8, _9, _0, MINUS, EQUAL, BACKSPACE],
-        [ESCAPE, F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12])
-    }
+        [ESCAPE, F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12]
+    )
+}
+key_specs = {
+    'small notebook': (
+        {'SPACE': (6.525, 1.125)},
+        {'LSHIFT': (2.325, 1.125), 'RSHIFT': (2.775, 1.125)},
+        {'CAPSLOCK': (1.725, 1.125), 'ENTER': (2.175, 1.125)},
+        {'TAB': (1.425, 1.125), 'BACKSLASH': (1.275, 1.125)},
+        {'GRAVE': (0.825, 1.125), 'BACKSPACE': (1.875, 1.125)},
+        {}
+    ),
+    'large notebook': (),
+    'mechanical': ()
+}

@@ -1,5 +1,5 @@
-import time
 import collections
+import time
 
 import arcade
 import pyglet
@@ -46,6 +46,9 @@ class GameWindow(arcade.Window):
         self.fps = FPSCounter()
         self.keyboard.update()
 
+    def on_update(self, delta_time: float):
+        self.fps.tick()
+
     def on_draw(self):
         arcade.start_render()
         self.keyboard.draw()
@@ -53,9 +56,6 @@ class GameWindow(arcade.Window):
         fps = self.fps.get_fps()
         output = f"FPS: {fps:.1f}"
         arcade.draw_text(output, 20, SCREEN_HEIGHT//2, arcade.color.WHITE, 16)
-        output = f"FPS2: {pyglet.clock.get_fps():.0f}"
-        arcade.draw_text(output, 100, SCREEN_HEIGHT//2, arcade.color.WHITE, 16)
-        self.fps.tick()
 
     def on_resize(self, width: float, height: float):
         self.keyboard = keyboard.Keyboard(width // 2, height // 3,

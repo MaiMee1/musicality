@@ -15,8 +15,6 @@ SEP = 0.075
 SCALING = SCALING_CONSTANT / SEP
 PRECISION = 10
 
-COLOR_REC_DEFAULT = arcade.color.BLACK
-
 
 def set_scaling(new_value):
     global SCALING_CONSTANT, SCALING
@@ -25,17 +23,28 @@ def set_scaling(new_value):
 
 
 class Rectangle:
-
-    def __init__(self, center_x: float, center_y: float, width: float, height: float, **kwargs):
+    def __init__(self, center_x: float, center_y: float, width: float, height: float,
+                 color: Color = arcade.color.BLACK, alpha: int = 255,
+                 border_width: float = 1,
+                 tilt_angle: float = 0,
+                 filled=True):
 
         self.width = width
         self.height = height
         self._position = [center_x, center_y]
 
-        self.color = kwargs.pop('color', COLOR_REC_DEFAULT)  # type: Color
-        self.alpha = kwargs.pop('alpha', 255)  # type: int
-        self.border_width = kwargs.pop('border_width', 1)  # type: float
-        self.tilt_angle = kwargs.pop('tilt_angle', 0)  # type: float
+        # self.color = kwargs.pop('color', arcade.color.BLACK)  # type: Color
+        # self.alpha = kwargs.pop('alpha', 255)  # type: int
+        # self.border_width = kwargs.pop('border_width', 1)  # type: float
+        # self.tilt_angle = kwargs.pop('tilt_angle', 0)  # type: float
+        # self.filled = kwargs.pop('filled', True)  # type: float
+
+        self.color = color
+        self.alpha = alpha
+
+        self.border_width = border_width
+        self.tilt_angle = tilt_angle
+        self.filled = filled
 
         self.shape = None  # type: arcade.Shape
 
@@ -128,7 +137,7 @@ class Rectangle:
     def redraw(self):
         self.shape = arcade.create_rectangle(
             self.center_x, self.center_y, self.width, self.height, self.rgba_color,
-            tilt_angle=self.tilt_angle)
+            border_width=self.border_width, tilt_angle=self.tilt_angle, filled=self.filled)
 
     def draw(self):
         self.shape.draw()
@@ -139,14 +148,13 @@ class Rectangle:
 
 class Key(Rectangle):
 
+    COLOR_INACTIVE = arcade.color.BLACK, 150
     COLOR_PRESSED = arcade.color.WHITE, 255
-    COLOR_NORMAL = arcade.color.BLACK, 150
 
     def __init__(self, center_x: float, center_y: float, width: float,
                  height: float, symbol: int, **kwargs):
 
-        kwargs['color'], kwargs['alpha'] = Key.COLOR_NORMAL
-        super().__init__(center_x, center_y, width, height, **kwargs)
+        super().__init__(center_x, center_y, width, height, *Key.COLOR_INACTIVE)
 
         self.symbol = symbol
         self._to_draw = []  # type: List[arcade.Shape]
@@ -161,7 +169,7 @@ class Key(Rectangle):
 
     def on_key_release(self, symbol: int, modifiers: int):
         assert symbol == self.symbol
-        self.color, self.alpha = Key.COLOR_NORMAL
+        self.color, self.alpha = Key.COLOR_INACTIVE
         self.update()
 
     def come_in(self, delta_clock: float, rgba_color: Color):
@@ -291,12 +299,7 @@ def _create_small_notebook_keys(verbose=False, **kwargs) -> Dict[int, Key]:
     size_arrow_keys = (1.075, 0.525)
 
     key_plan = key.key_plan['small notebook']
-    special_key_sizes = [{'SPACE': (6.525, 1.125)},
-                         {'LSHIFT': (2.325, 1.125), 'RSHIFT': (2.775, 1.125)},
-                         {'CAPSLOCK': (1.725, 1.125), 'ENTER': (2.175, 1.125)},
-                         {'TAB': (1.425, 1.125), 'BACKSLASH': (1.275, 1.125)},
-                         {'GRAVE': (0.825, 1.125), 'BACKSPACE': (1.875, 1.125)},
-                         {}]
+    special_key_sizes = key.key_specs['small notebook']
     arrow_keys = [[key.LEFT, key.DOWN, key.RIGHT],
                   [key.UP]]
 
@@ -383,15 +386,16 @@ class Keyboard(Rectangle):
         key_color = kwargs.pop('key_color', arcade.color.WHITE)
         key_alpha = kwargs.pop('key_alpha', 255)
 
-        width, height, self.edge = {'small notebook': (18.05, 7.6, 0.4375),
-                                    'large notebook': (22.85, 7.6, 0.4375),
-                                    'mechanical': (23.4, 9.0, 0.6)}[model]
-        super().__init__(center_x, center_y, width * SCALING, height * SCALING, **kwargs)
         self.keys = {
             'small notebook': _create_small_notebook_keys,
             'large notebook': _create_large_notebook_keys,
             'mechanical': _create_mechanical_keys
         }[model](key_color=key_color, key_alpha=key_alpha)
+
+        width, height, self.edge = {'small notebook': (18.05, 7.6, 0.4375),
+                                    'large notebook': (22.85, 7.6, 0.4375),
+                                    'mechanical': (23.4, 9.0, 0.6)}[model]
+        super().__init__(center_x, center_y, width * SCALING, height * SCALING, **kwargs)
 
         lower_left_z_key = self.left + self.edge*SCALING, self.bottom + self.edge*SCALING
         for k in self.keys.values():

@@ -3,7 +3,7 @@ Logs total time I spent on the project
 
 Mar 15, 2019 (Fri)  2 hours completing task breakdown (primary) on Trello
                     2 hours researching games
-Mar 16, 2019 (Sat)  1 hours reading about arcade, openGL, and git
+Mar 16, 2019 (Sat)  1 hour reading about arcade, openGL, and git
                     2 hours making a keyboard template on AutoCAD
                     3 hours getting started with the project + Git & GitHub
 Mar 17, 2019 (Sun)  7 hours stuck with keyboard
@@ -25,5 +25,6 @@ Mar 23, 2019 (Sat)  2 hours refactoring things about key.
 Mar 24, 2019 (Sun)  1 hour reading pand trying to understand pyglet.clock
 Mar 25, 2019 (Mon)  2 hours re-reading style guides
                     2 hours reading about project structure
+Mar 26, 2019 (Tue)  1 hour start making the XX engine (main program)?
 
 """
