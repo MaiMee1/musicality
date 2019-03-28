@@ -45,7 +45,6 @@ class GameWindow(arcade.Window):
         self.update_rate = 1/60
         self._set_update_rate(1/60)
         self.fps = FPSCounter()
-        self.keyboard.redraw(deep=True)
 
     def on_update(self, delta_time: float):
         self.fps.tick()

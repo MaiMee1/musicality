@@ -329,8 +329,8 @@ def _create_keys(symbols: List[int], width: float, height: float,
 
 
 def _create_small_notebook_keys(verbose=False, **kwargs) -> Dict[int, Key]:
-    color = kwargs.pop('key_color', arcade.color.BLACK)
-    alpha = kwargs.pop('key_alpha', 255)
+    color = kwargs.pop('key_color', Key.COLOR_INACTIVE[0])
+    alpha = kwargs.pop('key_alpha', Key.COLOR_INACTIVE[1])
     size_normal = (1.125, 1.125)
     size_f = (1.075, 0.725)
     size_arrow_keys = (1.075, 0.525)
@@ -420,14 +420,12 @@ class Keyboard(Rectangle):
     def __init__(self, center_x, center_y, *, model: str, **kwargs):
         model = model
         assert model in ('small notebook', 'large notebook', 'mechanical')
-        key_color = kwargs.pop('key_color', arcade.color.WHITE)
-        key_alpha = kwargs.pop('key_alpha', 255)
 
         self.keys = {
             'small notebook': _create_small_notebook_keys,
             'large notebook': _create_large_notebook_keys,
             'mechanical': _create_mechanical_keys
-        }[model](key_color=key_color, key_alpha=key_alpha)
+        }[model]()
 
         width, height, self.edge = {'small notebook': (18.05, 7.6, 0.4375),
                                     'large notebook': (22.85, 7.6, 0.4375),
@@ -449,12 +447,11 @@ class Keyboard(Rectangle):
         for k in self.keys.values():
             k.draw()
 
-    def redraw(self, deep=False):
+    def redraw(self):
         """ Recreate self's and optionally all keys' VBO """
         super().redraw()
-        if deep:
-            for k in self.keys.values():
-                k.redraw()
+        for k in self.keys.values():
+            k.redraw()
 
     def on_key_press(self, symbol: int, modifiers: int):
         try:

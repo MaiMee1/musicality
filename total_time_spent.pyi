@@ -29,5 +29,6 @@ Mar 25, 2019 (Mon)  2 hours re-reading style guides
 Mar 26, 2019 (Tue)  1 hour start making the XX engine (main program)?
 Mar 28, 2019 (Thu)  2 hours refactoring (and broking something) getting new things ready and
                             optimizing key's animation stack
+                    5 min   after showering break + Mo's advice solved the problem
 
 """
