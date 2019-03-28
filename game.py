@@ -17,6 +17,7 @@ class FPSCounter:
         self.frame_times = collections.deque(maxlen=60)
 
     def tick(self):
+        """ Call this every frame """
         t1 = time.perf_counter()
         dt = t1 - self.time
         self.time = t1
@@ -44,10 +45,11 @@ class GameWindow(arcade.Window):
         self.update_rate = 1/60
         self._set_update_rate(1/60)
         self.fps = FPSCounter()
-        self.keyboard.update()
+        self.keyboard.redraw(deep=True)
 
     def on_update(self, delta_time: float):
         self.fps.tick()
+        self.keyboard.update()
 
     def on_draw(self):
         arcade.start_render()
@@ -62,7 +64,7 @@ class GameWindow(arcade.Window):
                                           model='small notebook',
                                           color=arcade.color.LIGHT_BLUE,
                                           alpha=150)
-        self.keyboard.update()
+        self.keyboard.redraw()
 
     def on_key_press(self, symbol: int, modifiers: int):
         # print(symbol, modifiers)

@@ -6,7 +6,7 @@ RSHIFT also registers as LSHIFT in many computer's keyboard.
 from typing import Dict, List
 
 import arcade
-from arcade.arcade_types import Color
+from arcade.arcade_types import Color, RGBA
 
 import key
 
@@ -24,10 +24,7 @@ def set_scaling(new_value):
 
 class Rectangle:
     def __init__(self, center_x: float, center_y: float, width: float, height: float,
-                 color: Color = arcade.color.BLACK, alpha: int = 255,
-                 border_width: float = 1,
-                 tilt_angle: float = 0,
-                 filled=True):
+                 color: Color = arcade.color.BLACK, alpha: int = 255, **kwargs):
 
         self.width = width
         self.height = height
@@ -35,18 +32,21 @@ class Rectangle:
 
         # self.color = kwargs.pop('color', arcade.color.BLACK)  # type: Color
         # self.alpha = kwargs.pop('alpha', 255)  # type: int
-        # self.border_width = kwargs.pop('border_width', 1)  # type: float
-        # self.tilt_angle = kwargs.pop('tilt_angle', 0)  # type: float
-        # self.filled = kwargs.pop('filled', True)  # type: float
+        self.border_width = kwargs.pop('border_width', 1)  # type: float
+        self.tilt_angle = kwargs.pop('tilt_angle', 0)  # type: float
+        self.filled = kwargs.pop('filled', True)  # type: float
 
         self.color = color
         self.alpha = alpha
 
-        self.border_width = border_width
-        self.tilt_angle = tilt_angle
-        self.filled = filled
+        # self.border_width = border_width
+        # self.tilt_angle = tilt_angle
+        # self.filled = filled
 
-        self.shape = None  # type: arcade.Shape
+        self.shape = arcade.create_rectangle(
+            self.center_x, self.center_y, self.width, self.height, self.rgba,
+            border_width=self.border_width, tilt_angle=self.tilt_angle, filled=self.filled)
+        self.redraw()
 
         self.update_rate = 1/60
 
@@ -124,7 +124,7 @@ class Rectangle:
     opacity = property(_get_opacity, _set_opacity)
 
     @property
-    def rgba_color(self) -> Color:
+    def rgba(self) -> Color:
         return self.color[0], self.color[1], self.color[2], self.alpha
 
     @property
@@ -132,15 +132,19 @@ class Rectangle:
         return self.width, self.height
 
     def update(self):
-        self.redraw()
-
-    def redraw(self):
-        self.shape = arcade.create_rectangle(
-            self.center_x, self.center_y, self.width, self.height, self.rgba_color,
-            border_width=self.border_width, tilt_angle=self.tilt_angle, filled=self.filled)
+        """ Advance by one frame """
+        # Does not check when to redraw for performance reasons
+        pass
 
     def draw(self):
+        """ Draw VBO """
         self.shape.draw()
+
+    def redraw(self):
+        """ Recreate VBO """
+        self.shape = arcade.create_rectangle(
+            self.center_x, self.center_y, self.width, self.height, self.rgba,
+            border_width=self.border_width, tilt_angle=self.tilt_angle, filled=self.filled)
 
     def set_update_rate(self, rate: float):
         self.update_rate = rate
@@ -154,10 +158,14 @@ class Key(Rectangle):
     def __init__(self, center_x: float, center_y: float, width: float,
                  height: float, symbol: int, **kwargs):
 
-        super().__init__(center_x, center_y, width, height, *Key.COLOR_INACTIVE)
-
         self.symbol = symbol
-        self._to_draw = []  # type: List[arcade.Shape]
+        self._stack = []  # type: List[arcade.Shape]
+        self.to_draw = []  # type: List[arcade.Shape]
+        self.state = None
+
+        super().__init__(center_x, center_y, width, height, **kwargs)
+        # self.color, self.alpha = Key.COLOR_INACTIVE
+        # self.redraw()
 
     def __str__(self):
         return f"key constant: {self.symbol} size: {self.size} posn: {self._position}"
@@ -165,29 +173,58 @@ class Key(Rectangle):
     def on_key_press(self, symbol: int, modifiers: int):
         assert symbol == self.symbol
         self.color, self.alpha = Key.COLOR_PRESSED
-        self.update()
+        self.redraw()
 
     def on_key_release(self, symbol: int, modifiers: int):
         assert symbol == self.symbol
         self.color, self.alpha = Key.COLOR_INACTIVE
-        self.update()
+        self.redraw()
 
-    def come_in(self, delta_clock: float, rgba_color: Color):
-        rgba_color = arcade.get_four_byte_color(rgba_color)
-        # prep
-        self._to_draw = []
-        for i in range(1, int(delta_clock / self.update_rate) + 1):
-            self._to_draw.append(arcade.create_rectangle(
+    def come_in(self, delta_clock: float, rgba: RGBA):
+        # create a generator
+        self._stack = (
+            arcade.create_rectangle(
                 self.center_x, self.center_y,
                 1 + (self.width - 1) * self.update_rate * i / delta_clock,
                 1 + (self.height - 1) * self.update_rate * i / delta_clock,
-                rgba_color,
-                tilt_angle=self.tilt_angle))
+                rgba, tilt_angle=self.tilt_angle)
+            for i in range(1, int(delta_clock / self.update_rate) + 1)
+        )
+
+    def update(self):
+        """ Advance by one frame getting to_draw from stack """
+        try:
+            if self._stack:
+                self.to_draw.append(next(self._stack))
+        except StopIteration:
+            self._stack = None
+
+    # def come_in(self, delta_clock: float, rgba: RGBA):
+    #     # create a list
+    #     self._stack = [
+    #         arcade.create_rectangle(
+    #             self.center_x, self.center_y,
+    #             1 + (self.width - 1) * self.update_rate * i / delta_clock,
+    #             1 + (self.height - 1) * self.update_rate * i / delta_clock,
+    #             rgba, tilt_angle=self.tilt_angle)
+    #         for i in range(1, int(delta_clock / self.update_rate) + 1)
+    #     ]
+    #
+    # def update(self):
+    #     """ Advance by one frame getting to_draw from stack """
+    #     try:
+    #         if self._stack:
+    #             self.to_draw.append(self._stack.pop(0))
+    #     except StopIteration:
+    #         self._stack = None
 
     def draw(self):
-        super().draw()
-        if self._to_draw:
-            self._to_draw.pop(0).draw()
+        """ Draw self and things in to_draw """
+        self.shape.draw()
+        if self.to_draw:
+            for shape in self.to_draw:
+                shape.draw()
+            self.to_draw = []
 
 
 def _align_center_x(shapes: List[Rectangle], index: int = 0, most=False) -> float:
@@ -402,14 +439,22 @@ class Keyboard(Rectangle):
             k.move(*lower_left_z_key)
 
     def update(self):
-        super().update()
+        """ Advance self and its keys by one frame """
         for k in self.keys.values():
             k.update()
 
     def draw(self):
+        """ Draw self and its keys """
         super().draw()
         for k in self.keys.values():
             k.draw()
+
+    def redraw(self, deep=False):
+        """ Recreate self's and optionally all keys' VBO """
+        super().redraw()
+        if deep:
+            for k in self.keys.values():
+                k.redraw()
 
     def on_key_press(self, symbol: int, modifiers: int):
         try:
@@ -420,11 +465,18 @@ class Keyboard(Rectangle):
         # for testing
         if symbol == key.Q:
             self.keys[key.W].come_in(1, arcade.color.GREEN)
+        if symbol == key.T:
+            for k in self.keys.values():
+                k.come_in(1, arcade.color.GREEN)
 
     def on_key_release(self, symbol: int, modifiers: int):
-        self.keys[symbol].on_key_release(symbol, modifiers)
+        try:
+            self.keys[symbol].on_key_release(symbol, modifiers)
+        except KeyError:
+            # do nothing if key does not exist on keyboard
+            pass
 
     def set_update_rate(self, rate: float):
         self.update_rate = rate
-        for key in self.keys.values():
-            key.set_update_rate(rate)
+        for k in self.keys.values():
+            k.set_update_rate(rate)
