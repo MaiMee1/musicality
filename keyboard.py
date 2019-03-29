@@ -49,7 +49,8 @@ class Rectangle:
             border_width=self.border_width, tilt_angle=self.tilt_angle, filled=self.filled)
         self.redraw()
 
-        self.update_rate = 1/60
+        # FIXME must set update rate overhere as well
+        self._update_rate = 1/60
 
     def __str__(self):
         return f"size: {self.size} posn: {self._position}"
@@ -147,8 +148,13 @@ class Rectangle:
             self.center_x, self.center_y, self.width, self.height, self.rgba,
             border_width=self.border_width, tilt_angle=self.tilt_angle, filled=self.filled)
 
-    def set_update_rate(self, rate: float):
-        self.update_rate = rate
+    @property
+    def update_rate(self):
+        return self._update_rate
+
+    @update_rate.setter
+    def update_rate(self, rate: float):
+        self._update_rate = rate
 
 
 class Key(Rectangle):
@@ -188,6 +194,8 @@ class Key(Rectangle):
             self.redraw()
 
     def setup_stack(self, delta_time: float, rgba: RGBA):
+        # FIXME generator create at 'compile' time
+        # TODO let update_rate get from runtime
         # create a generator
         self._stack = (
             arcade.create_rectangle(
@@ -467,9 +475,9 @@ class Keyboard(Rectangle):
             # do nothing if key does not exist on keyboard
             pass
         # for testing
-        if symbol == key.Q:
-            self.keys[key.W].setup_stack(1, arcade.color.GREEN)
-        if symbol == key.T:
+        if symbol == key.ESCAPE:
+            self.keys[key.F1].setup_stack(1, arcade.color.GREEN)
+        if symbol == key.F12:
             for k in self.keys.values():
                 k.setup_stack(1, arcade.color.GREEN)
 
@@ -483,9 +491,9 @@ class Keyboard(Rectangle):
     def set_update_rate(self, rate: float):
         self.update_rate = rate
         for k in self.keys.values():
-            k.set_update_rate(rate)
+            k.update_rate = rate
 
     def send(self, hit_object: HitObject):
         k = self.keys[hit_object.symbol]
-        k.setup_stack(hit_object.reach_time - hit_object.start_time)
+        k.setup_stack(hit_object.reach_time - hit_object.start_time, arcade.color.PINK)
         k.state = Key.STATE_ACTIVE

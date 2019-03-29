@@ -468,3 +468,20 @@ key_specs = {
     'large notebook': (),
     'mechanical': ()
 }
+
+# normal_keys = [
+#     Z, X, C, V, B, N, M, COMMA, PERIOD, SLASH,
+#     A, S, D, F, G, H, J, K, L, SEMICOLON, APOSTROPHE,
+#     Q, W, E, R, T, Y, U, I, O, P, BRACKETLEFT, BRACKETRIGHT, BACKSLASH
+# ]
+
+normal_keys = [
+    V, B, N, M,
+    F, G, H, J,
+    R, T, Y, U,
+]
+
+
+
+
+
