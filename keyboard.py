@@ -9,6 +9,7 @@ import arcade
 from arcade.arcade_types import Color, RGBA
 
 import key
+from song import HitObject
 
 SCALING_CONSTANT = 1
 SEP = 0.075
@@ -155,13 +156,17 @@ class Key(Rectangle):
     COLOR_INACTIVE = arcade.color.BLACK, 150
     COLOR_PRESSED = arcade.color.WHITE, 255
 
+    STATE_INACTIVE = 0
+    STATE_ACTIVE = 1
+
     def __init__(self, center_x: float, center_y: float, width: float,
                  height: float, symbol: int, **kwargs):
 
         self.symbol = symbol
         self._stack = []  # type: List[arcade.Shape]
         self.to_draw = []  # type: List[arcade.Shape]
-        self.state = None
+        self.state = [Key.STATE_INACTIVE]
+        self.pressable = kwargs.pop('pressable', True)
 
         super().__init__(center_x, center_y, width, height, **kwargs)
         # self.color, self.alpha = Key.COLOR_INACTIVE
@@ -172,23 +177,25 @@ class Key(Rectangle):
 
     def on_key_press(self, symbol: int, modifiers: int):
         assert symbol == self.symbol
-        self.color, self.alpha = Key.COLOR_PRESSED
-        self.redraw()
+        if self.pressable:
+            self.color, self.alpha = Key.COLOR_PRESSED
+            self.redraw()
 
     def on_key_release(self, symbol: int, modifiers: int):
         assert symbol == self.symbol
-        self.color, self.alpha = Key.COLOR_INACTIVE
-        self.redraw()
+        if self.pressable:
+            self.color, self.alpha = Key.COLOR_INACTIVE
+            self.redraw()
 
-    def come_in(self, delta_clock: float, rgba: RGBA):
+    def setup_stack(self, delta_time: float, rgba: RGBA):
         # create a generator
         self._stack = (
             arcade.create_rectangle(
                 self.center_x, self.center_y,
-                1 + (self.width - 1) * self.update_rate * i / delta_clock,
-                1 + (self.height - 1) * self.update_rate * i / delta_clock,
+                1 + (self.width - 1) * self.update_rate * i / delta_time,
+                1 + (self.height - 1) * self.update_rate * i / delta_time,
                 rgba, tilt_angle=self.tilt_angle)
-            for i in range(1, int(delta_clock / self.update_rate) + 1)
+            for i in range(1, int(delta_time / self.update_rate) + 1)
         )
 
     def update(self):
@@ -461,10 +468,10 @@ class Keyboard(Rectangle):
             pass
         # for testing
         if symbol == key.Q:
-            self.keys[key.W].come_in(1, arcade.color.GREEN)
+            self.keys[key.W].setup_stack(1, arcade.color.GREEN)
         if symbol == key.T:
             for k in self.keys.values():
-                k.come_in(1, arcade.color.GREEN)
+                k.setup_stack(1, arcade.color.GREEN)
 
     def on_key_release(self, symbol: int, modifiers: int):
         try:
@@ -477,3 +484,8 @@ class Keyboard(Rectangle):
         self.update_rate = rate
         for k in self.keys.values():
             k.set_update_rate(rate)
+
+    def send(self, hit_object: HitObject):
+        k = self.keys[hit_object.symbol]
+        k.setup_stack(hit_object.reach_time - hit_object.start_time)
+        k.state = Key.STATE_ACTIVE
