@@ -34,57 +34,179 @@ Mar 29, 2019 (Fri)  5 hours botching together an update
                     4 hours rethinking, re-planning, and trying to make documentations before
                     refactoring. (DDD, I guess.)
 Mar 30, 2019 (Sat)  2 hours DDD (cont.)
+Apr  5, 2019 (Fri)  10 min  TimeEngine
+Apr  6, 2019 (Sat)  2 hours Audio, Time
+                    30 min Beatmap
+Apr  7, 2019 (Sun)  1 hour Beatmap (cont.)
+
 """
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Union, Optional, Tuple, List, Dict, NewType
+from io import StringIO
+from typing import Any, Union, Optional, Tuple, List, Dict, NewType, TextIO, Iterable
+import warnings
 
 import arcade
 import pyglet
-
+# TODO how to play
 
 class TimeEngine:
     """ Manages time """
-    def __init__(self):
-        pass
+
+    __slots__ = 'time', '_frame_times', '_t', '_start_time', '_dt'
+
+    def __init__(self, maxlen: int = 60):
+        import time
+        import collections
+        self.time = time.perf_counter
+        self._frame_times = collections.deque(maxlen=maxlen)
+        # Ensure that deque is not empty and sum() != 0
+        self._t = self._start_time = self.time()
+        self._dt = 0
+        self.tick()
 
     def tick(self):
         """ Call to signify one frame passing """
-        pass
+        t = self.time()
+        self._dt = dt = t - self._t
+        self._t = t
+        self._frame_times.append(dt)
 
+    @property
     def fps(self) -> float:
         """ Return current average fps """
-        pass
+        return len(self._frame_times) / sum(self._frame_times)
 
+    @property
     def game_time(self) -> float:
         """ Return current game_time in seconds """
-        pass
+        return self._t - self._start_time
 
+    @property
     def dt(self) -> float:
         """ Return time difference of this and last frame in seconds """
-        pass
+        return self._dt
+
+# Audio helper class
+class Time:
+    """ Represents time """
+
+    __slots__ = '_time'
+
+    def __init__(self, time: Union[str, int, float]):
+        """ Assume time is in seconds or string in the correct format """
+        try:
+            time > 0
+            # Doesn't raise error if time is a number
+            self._time = float(time)
+        except TypeError:
+            # Assume new_time is str
+            h_str, m_str, ms_str = 0, 0, 0
+            if '.' in time:
+                try:
+                    time, ms_str = time.split('.')
+                except ValueError:
+                    try:
+                        m_str, time, ms_str = time.split('.')
+                    except ValueError:
+                        h_str, m_str, time, ms_str = time.split('.')
+                    except:
+                        raise ValueError("invalid format for 'time'")
+            if ':' in time:
+                try:
+                    m_str, time = time.split(':')
+                except ValueError:
+                    h_str, m_str, time = time.split(':')
+                except:
+                    raise ValueError("invalid format for 'time'")
+            self._time = int(h_str)*3600 + int(m_str)*60 + int(time) + int(ms_str)/1000
+            round(self._time, 10)
+
+    def __str__(self):
+        """ Return string in the format hh:mm:ss.ms """
+        ms = (self._time % 1) * 1000
+        s = self._time % 60
+        m = (self._time // 60) % 60
+        h = self._time // 3600
+        return f'{h:02.0f}:{m:02.0f}:{s:02.0f}.{ms:.0f}'
+
+    def __float__(self):
+        """ Return time in seconds """
+        return self._time
+
+    def __int__(self):
+        """ Return time in milliseconds """
+        return int(self._time * 1000)
+
+
+# helper class
+class Audio:
+    """ Represents audio file """
+
+    __slots__ = '_source', '_player'
+
+    def __init__(self, *,
+                 filepath: Path = None, absolute: bool = False,
+                 filename: str = '', loader: pyglet.resource.Loader = None):
+        """ Assume argument is in the correct type """
+        if loader:
+            if filename:
+                if filepath:
+                    assert filepath.name == filename
+            else:
+                if filepath:
+                    filename = filepath.name
+                else:
+                    raise TypeError("Audio() needs 'filename' if 'loader' is used and 'filepath' is not specified")
+            self._source = loader.media(filename)
+        else:
+            if filepath:
+                if not absolute:
+                    filepath = Path().resolve() / filepath
+                pyglet.resource.path.append(filepath.parent)
+                pyglet.resource.reindex()
+                self._source = pyglet.media.load(filepath.name)
+            else:
+                raise TypeError("Audio() missing 1 required keyword argument: 'filepath'")
+        self._player = pyglet.media.Player()
+        self._player.queue(self._source)
+
+    def play(self):
+        """ Play the audio """
+        self._player.play()
+
+    def pause(self):
+        """ Pause the audio """
+        self._player.pause()
+
+    def restart(self):
+        """ Reset and pause the audio """
+        self._player.pause()
+        self._player.seek(0)
+
+    @property
+    def duration(self):
+        """ Return length of the audio """
+        return self._source.duration
+
+    @property
+    def time(self):
+        """ Return current time of the audio (seconds) """
+        return self._player.time
+
+    @time.setter
+    def time(self, new_time: Union[str, int, float]):
+        """ Set current time to new_time"""
+        new_time = Time(new_time)
+        self._player.seek(float(new_time))
 
 
 class AudioEngine:
     """ Manages audio """
-    def __init__(self):
+    def __init__(self, beatmap: Beatmap, time_engine: TimeEngine):
         pass
 
-    def play(self):
-        """ Play the current song and change game.state accordingly.
-        Resume counting game_time. """
-        pass
-
-    def pause(self):
-        """ Pause the current song and change game.state accordingly.
-        Pause game_time """
-        pass
-
-    def restart(self):
-        """ Reset and pause the current song and change game.state
-        accordingly. Set game_time to zero - wait_time. """
-        pass
 
     def load(self, path: Optional[Path]):
         """ Get things going. (Re)Load file from path and initialize
@@ -94,63 +216,185 @@ class AudioEngine:
 
 class Beatmap:
     """ Represents information from .osu + .msc files """
-    def __init__(self, path: Path):
+
+    def __init__(self, filepath: Path):
         """ Load information from file at path and create appropriate
         fields. """
-        pass
+        assert str(filepath).endswith('.osu'), 'only use this to open .osu files'
 
-    def audio_path(self) -> Path:
-        """ Return path to audio-- the song (mostly .mp3) --file of the
-        instance. """
-        pass
+        def read_until(text_file: Union[StringIO, TextIO], starting_str: str) -> str:
+            """ Returns next line that begins with starting_str - starting_str """
+            # TODO add checking and fix starting_str to
+            current = text_file.readline()
+            while starting_str not in current and current != '':
+                current = text_file.readline()
+            return current[len(starting_str):-1]
 
-    def audio(self) -> pyglet.media.Source:
-        """ Return an audio object that can be played, paused, replayed
-        , and set time. """
-        pass
 
-    def hit_sound_paths(self) -> List[Path]:
+        with open(filepath, encoding="utf8") as f:
+            # TODO check if it really works for every version
+            first_line = f.readline()
+            if first_line not in [f"osu file format v{x}\n" for x in (14, 13, 12)]:
+                warnings.warn(f"reading beatmap file... osu file format version '{first_line[-4:-1]}' is not known", ResourceWarning)
+
+            audio_filename = read_until(f, 'AudioFilename: ')
+            assert audio_filename.endswith('.mp3')
+            self._audio_filepath = filepath.parent / Path(audio_filename)
+
+            def get_data(container: Dict,
+                         str_heads: Iterable[str],
+                         keys: Optional[Iterable[str]] = None,
+                         to_int: Optional[Iterable[str], str] = None,
+                         to_float: Optional[Iterable[str], str] = None):
+                """ Read into container. Mutates container. Custom for v14, 12 only """
+                if keys is None:
+                    # only use strings before ':'
+                    keys = [str_head.split(':')[0] for str_head in str_heads]
+                for str_head, key in zip(str_heads, keys):
+                    value = read_until(f, str_head)
+                    if key in to_int or to_int=='all':
+                        try:
+                            value = int(value)
+                        except TypeError:
+                            warnings.warn(f"reading .osu file... failed to convert '{value}' to int", ResourceWarning)
+                    if key in to_float or to_float=='all':
+                        try:
+                            value = float(value)
+                        except TypeError:
+                            warnings.warn(f"reading .osu file... failed to convert '{value}' to float", ResourceWarning)
+                    container[key] = value
+
+            self._metadata = {}
+            get_data(self._metadata,
+                     ['Title:','TitleUnicode:', 'ArtistUnicode:', 'Creator:',
+                      'Version:', 'Source:', 'Tags:', 'BeatmapID:', 'BeatmapSetID:'],
+                     to_int=['BeatmapID', 'BeatmapSetID'])
+
+            self._difficulty = {}
+            get_data(self._difficulty,
+                     ['HPDrainRate:','CircleSize::', 'OverallDifficulty:', 'ApproachRate:',
+                      'SliderMultiplier:', 'SliderTickRate:'],
+                     to_float='all')
+
+            self._background_filename, self._video_filename = None, None
+            read_until('//Background and Video events')
+            l = None
+            while l != '//Break Periods':
+                l = f.readline()
+                for elem in l.split('"'):
+                    if l.endswith('.jpg'):
+                        self._background_filename = l
+                    elif l.endswith('.mp4'):
+                        self._video_filename = l
+
+            # TODO get average BPM instead
+            read_until(f, 'TimingPoints')
+            x = float(f.readline().split(',')[1])
+            self._BPM = 60000 / x
+
+            self._hit_times = []
+            read_until(f, '[HitObjects]')
+            current_line = f.readline()
+            i = 0
+            n = 3000
+            while i < n and current_line not in ['\n', '']:
+                temp = current_line.split(',')[2]  # milliseconds str
+                self._hit_times.append(round(float(temp)/1000, 3))  # seconds
+                i += 1
+                current_line = f.readline()
+
+
+        self._filepath = filepath
+        self._loader = pyglet.resource.Loader([self.get_folder_path(absolute=True), '.'])
+
+    def get_folder_path(self, absolute=False) -> Path:
+        """ Return folder path of the instance """
+        if absolute:
+            return Path().resolve() / self._filepath.parent
+        return self._filepath.parent
+
+    def get_audio_path(self, absolute=False) -> Path:
+        """ Return path to the audio file-- the song (mostly .mp3) --of
+        the instance. """
+        if absolute:
+            return Path().resolve() / self._audio_filepath
+        return  self._audio_filepath
+
+    @property
+    def audio_filename(self) -> Audio:
+        """ Return name of the audio file """
+        return self._audio_filepath.name
+
+    @property
+    def audio(self) -> Audio:
+        """ Generate and return an audio object """
+        return Audio(filename=self.audio_filename, loader=self._loader)
+
+    def get_hit_sound_paths(self, absolute=False) -> List[Path]:
         """ Return a list of paths to hit_sounds-- sounds a keypress
         maps to (mostly .wav) --files of the instance. """
         pass
 
-    def hit_sounds(self) -> List[pyglet.media.Source]:
-        """ Return a list of objects that can be played, paused,
-        replayed, and set time. """
+    def hit_sound_filenames(self) -> Audio:
+        """ Return names of the hit_sound files """
         pass
 
-    def background_path(self) -> Path:
-        """ Return path to background image(s?) of the instance """
+    def hit_sounds(self) -> List[Audio]:
+        """ Generate and return a list of audio objects """
         pass
+
+    def get_background_path(self, absolute=False) -> Optional[Path]:
+        """ Return path to background image(s?) of the instance """
+        if self._background_filename is None:
+            return None
+        if absolute:
+            return self.get_folder_path(absolute=True) / self._background_filename
+        return self.get_folder_path() / self._background_filename
+
+    @property
+    def background_filename(self) -> Optional[str]:
+        """ Return name of the background image file """
+        if self._background_filename is None:
+            return self._background_filename
 
     def background_image(self) -> pyglet.image.AbstractImage:
-        """ Return an image that can be drawn """
+        """ Generate and return an image that can be drawn """
         pass
 
-    def video_path(self) -> Path:
+    def get_video_path(self, absolute=False) -> Optional[Path]:
         """ Return path to video of the instance """
-        pass
+        if self._video_filename is None:
+            return None
+        if absolute:
+            return self.get_folder_path(absolute=True) / self._video_filename
+        return self.get_folder_path() / self._video_filename
+
+    @property
+    def video_filename(self) -> Optional[str]:
+        """ Return name of the video file """
+        if self._video_filename is None:
+            return None
+        return self._video_filename
 
     def video(self) -> pyglet.media.Source:
-        """ Return a video that can be played, played, paused, replayed
+        """ Generate and return a video that can be played, played, paused, replayed
         , and set time. """
         pass
 
-    def metadata(self) -> Union[List, Tuple]:
-        """ Return the metadata of the instance """
-        pass
-
+    @property
     def version(self) -> str:
         """ Return the version-- difficulty --of the instance """
-        pass
+        return self._metadata['Version']
 
+    @property
     def BPM(self) -> float:
         """ Return the BPM-- beats per minute --of the instance """
-        pass
+        return self._BPM
 
+    @property
     def AR(self) -> float:
         """ Return the AR-- approach rate --of the instance """
-        pass
+        return self._difficulty['ApproachRate']
 
     def hit_objects(self) -> List[HitObject]:
         """ Return a list of processed hit_objects of the instance """
@@ -159,7 +403,7 @@ class Beatmap:
 
 class HitObject:
     """ Represents an Osu! HitObject """
-    def __init__(self):
+    def __init__(self, reach_time: float, ):
         pass
 
     def reach_time(self) -> float:

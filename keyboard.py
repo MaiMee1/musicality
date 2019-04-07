@@ -50,7 +50,7 @@ class Rectangle:
         self.redraw()
 
         # FIXME must set update rate overhere as well
-        self._update_rate = 1/60
+        self._update_rate = 1/60.5
 
     def __str__(self):
         return f"size: {self.size} posn: {self._position}"

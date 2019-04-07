@@ -476,9 +476,9 @@ key_specs = {
 # ]
 
 normal_keys = [
-    V, B, N, M,
-    F, G, H, J,
-    R, T, Y, U,
+    Z, X, C, V,
+    A, S, D, F,
+    Q, W, E, R,
 ]
 
 

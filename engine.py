@@ -21,7 +21,7 @@ VAR_LONG = HitObjectVar(5)
 class Main:
     """ Manages keyboard, incoming beats, etc. """
     FRAME_TIME_LEN = 60
-    FRAME_RATE = 1/60
+    FRAME_RATE = 1/60.5
 
     def __init__(self, song_folder: Path, keyboard: Keyboard):
         version = 'Hard'
@@ -61,9 +61,9 @@ class Main:
 
     def on_draw(self):
         # HACK skip drawing this frame if lagging i.e. update again before drawing
-        if self.lag > Main.FRAME_RATE:
-            print(self.lag)
-            return
+        # if self.lag > Main.FRAME_RATE:
+        #     print(self.lag)
+        #     return
         self.keyboard.draw()
 
     @property

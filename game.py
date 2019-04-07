@@ -54,9 +54,11 @@ class GameWindow(arcade.Window):
         self.main_engine = engine.Main(path, self.keyboard)
 
         self.update_rate = 1/60
-        self._set_update_rate(1/60)
+        self._set_update_rate(1/60.5)
         # self.sound = arcade.load_sound('Towa yori Towa ni.mp3')
         self.sound = arcade.load_sound('Sayonara no Yukue.mp3')
+
+        self.set_vsync(True)
 
     def on_update(self, delta_time: float):
         self.main_engine.update(delta_time)
