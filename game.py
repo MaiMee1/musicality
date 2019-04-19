@@ -55,8 +55,8 @@ class GameWindow(arcade.Window):
 
         self.update_rate = 1/60
         self._set_update_rate(1/60.5)
-        # self.sound = arcade.load_sound('Towa yori Towa ni.mp3')
-        self.sound = arcade.load_sound('Sayonara no Yukue.mp3')
+        # self.sound = arcade.load_sound('Towa yori Towa ni.wav')
+        self.sound = arcade.load_sound('Sayonara no Yukue.wav')
 
         self.set_vsync(True)
 
