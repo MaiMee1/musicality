@@ -1,4 +1,4 @@
-from __future__ import annotations
+# from __future__ import annotations
 from pathlib import Path
 from io import StringIO
 from typing import Union, TextIO

@@ -31,3 +31,6 @@ GameState = NewType('GameState', int)
 _temp = namedtuple('HitObjectConstant', ['MAIN_MENU', 'OPTIONS', 'SONG_SELECT', 'GAME_PAUSED', 'GAME_PLAYING', 'GAME_FINISH'])
 GAME_STATE = _temp(*map(GameState, range(6)))
 
+_temp = namedtuple('HitSoundConstant', ['CLAP', 'FINISH', 'WHISTLE', 'NORMAL'])
+HIT_SOUND = _temp(8, 4, 2, 0)
+
