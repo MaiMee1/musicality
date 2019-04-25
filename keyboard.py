@@ -135,8 +135,9 @@ class Rectangle:
 
     def update(self):
         """ Advance by one frame """
-        # Does not check when to redraw for performance reasons
-        pass
+        self.shape = arcade.create_rectangle(
+            self.center_x, self.center_y, self.width, self.height, self.rgba,
+            border_width=self.border_width, tilt_angle=self.tilt_angle, filled=self.filled)
 
     def draw(self):
         """ Draw VBO """

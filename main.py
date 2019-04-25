@@ -7,6 +7,9 @@ import warnings
 
 import arcade
 import pyglet
+
+import key as key_
+import new_keyboard as keyboard_
 # TODO how to play
 
 
@@ -32,10 +35,17 @@ class TimeEngine:
         self._t = t
         self._frame_times.append(dt)
 
+    def reset(self):
+        """ Restart the clock """
+        self._start_time = self.time()
+
     @property
     def fps(self) -> float:
         """ Return current average fps """
-        return len(self._frame_times) / sum(self._frame_times)
+        try:
+            return len(self._frame_times) / sum(self._frame_times)
+        except ZeroDivisionError:
+            return 0
 
     @property
     def game_time(self) -> float:
@@ -46,6 +56,7 @@ class TimeEngine:
     def dt(self) -> float:
         """ Return time difference of this and last frame in seconds """
         return self._dt
+
 
 # helper class
 class Time:
@@ -116,7 +127,7 @@ class Time:
 class Audio:
     """ Represents audio file """
 
-    __slots__ = '_source', '_engine'
+    __slots__ = '_source', '_engine', '_player'
 
     def __init__(self, *,
                  filepath: Path = None, absolute: bool = False,
@@ -134,15 +145,22 @@ class Audio:
                     raise TypeError("Audio() needs 'filename' if 'loader' is used and 'filepath' is not specified")
             self._source = loader.media(filename)
         else:
+            # FIXME DO NOT USE resource
             if filepath:
                 if not absolute:
                     filepath = Path().resolve() / filepath
-                pyglet.resource.path.append(filepath.parent)
+                pyglet.resource.path.append(str(filepath.parent))
                 pyglet.resource.reindex()
                 self._source = pyglet.media.load(filepath.name)
             else:
                 raise TypeError("Audio() missing 1 required keyword argument: 'filepath'")
-        self._engine = None  # type: AudioEngine
+        self._engine: AudioEngine
+        self._player: pyglet.media.Player
+
+    @property
+    def source(self):
+        """ Return the source of this audio """
+        return self._source
 
     @property
     def duration(self):
@@ -187,16 +205,57 @@ class Audio:
         new_time = Time(new_time)
         self._engine.seek(self, float(new_time))
 
+    @property
+    def player(self) -> Optional[pyglet.media.Player]:
+        """ Return the player of this audio """
+        try:
+            return self._player
+        except AttributeError:
+            return
+
+    def set_player(self, new_player: pyglet.media.Player):
+        """ Set player to `new_player` """
+        self._player = new_player
+
 
 class AudioEngine:
     """ Manages audio """
+
+    __slots__ = 'beatmap', '_sample_sets', '_song', '_audios', '_players'
+
+    from constants import SAMPLE_NAMES
+    from constants import HIT_SOUND_MAP
+
     def __init__(self, beatmap: Beatmap, time_engine: TimeEngine):
+        self.beatmap = beatmap
+        self._sample_sets = []  # type: List[Dict[str, Audio]]
+
+        self._song = Audio(filename=beatmap.audio_filename, loader=beatmap.resource_loader)
+
         self._audios = []  # type: List[Audio]
+        self._players = []  # type: List[pyglet.media.Player]
+
+        self.register(self._song)
 
     # def load_song(self, song_path: Optional[Path]):
     #     """ Get things going. (Re)Load file from path and initialize
     #     for playing. Set game_time to zero - wait_time. """
     #     pass
+
+    def _generate_sample_set(self):
+        d = {name: Audio() for name in self.beatmap.get_samples_filenames()}
+        for name in self.SAMPLE_NAMES:
+            if name not in d.keys():
+                d[name] = AudioEngine._load_default(name)
+        self._sample_sets.extend(d)
+        pass
+
+    def _load_default(self, sample: str) -> Audio:
+        """ Load sample from default sample """
+        if sample not in AudioEngine.SAMPLE_NAMES:
+            pass
+        audio = Audio(filepath=Path('resources/Default/sample/'+sample+'.wav'))
+        return audio
 
     def register(self, *audios: Audio):
         """ Register the audio file the let audio engine handle it """
@@ -205,41 +264,251 @@ class AudioEngine:
         self._audios.extend(audios)
 
     def play_sound(self, hit_sound: int):
-        """ Play sounds given """
-        pass
+        """ Play hit_sound according to code given """
+        assert hit_sound in AudioEngine.HIT_SOUND_MAP.keys()
+        try:
+            samples = AudioEngine.HIT_SOUND_MAP[hit_sound]
+            for sample in samples:
+                sample = 'normal-' + sample + '.wav'
+                try:
+                    self._sample_sets[0][sample].play()
+                except:
+                    pass
+        except:
+            pass
 
     @property
     def song(self) -> Audio:
         """ Return the song """
-        pass
+        return self._song
+
+    def _get_player(self, audio) -> (Optional[pyglet.media.Player]):
+        """ Get a player has audio as the current source or recycle one that is not playing or create a new one.
+        Returns: Player, source_loaded (bool) """
+        match = [player for player in self._players if player.source == audio]
+        if match:
+            return match
+        return None
+
+    def _add_player(self, player=None) -> pyglet.media.Player:
+        """ Add `player` to list or generate a new one and add to list """
+        if player is None:
+            player = pyglet.media.Player()
+        self._players.append(player)
+        return player
 
     def play(self, audio: Audio):
         """ Play the audio if stopped """
-        pass
+        player = self._add_player()
+        player.queue(audio.source)
+        player.play()
 
     def stop(self, audio: Audio):
         """ Stop the audio if playing """
-        pass
+        players = self._get_player(audio)
+        if players is not None:
+            player = players[0]
+            player.pause()
+            player.seek(0)
 
     def playing(self, audio: Audio) -> bool:
         """ Return True if audio is playing, False otherwise """
-        pass
+        players = self._get_player(audio)
+        if players is not None:
+            player = players[0]
+            return player.playing
+        return False
 
     def pause(self, audio: Audio):
         """ Pause the audio if playing """
-        pass
+        players = self._get_player(audio)
+        if players is not None:
+            player = players[0]
+            player.pause()
 
     def restart(self, audio: Audio):
         """ Play the audio again from the beginning """
-        pass
+        players = self._get_player(audio)
+        if players is not None:
+            player = players[0]
+            player.seek(0)
 
     def seek(self, audio: Audio, time: Union[str, int ,float]):
         """ Seek audio to `time` """
+        players = self._get_player(audio)
+        if players is not None:
+            player = players[0]
+            player.seek(float(time))
+
+    def time(self, audio: Audio) -> Tuple[float]:
+        """ Return current time of audio """
+        players = self._get_player(audio)
+        if players is not None:
+            return tuple(player.time for player in players)
+
+
+class ScoreEngine:
+    """ Manages calculation of score, combo, grade, etc. """
+    def __init__(self, beatmap: Beatmap):
+        from collections import deque
+        self.beatmap = beatmap
+        self._score = 0
+        self._combo = 0
+        self._perfect = True
+        self._not_missed = True
+        self._accuracy_stack = deque(maxlen=20)
+        self._grade_stack = []
+
+    def register_hit(self, hit_object: HitObject, time: float, type: HitObject.Type):
+        # TODO
+        accuracy = self._calculate_accuracy(time)
+        grade = self._calculate_grade(accuracy)
+        score = self._calculate_score(grade, type)
+
+        self._accuracy_stack.append(accuracy)
+        self._grade_stack.append(abs(1-accuracy))
+        if self._perfect:
+            if grade != 'perfect':
+                self._perfect = False
+        if grade != 'miss':
+            self._combo += 1
+        else:
+            if self._not_missed:
+                self._not_missed = False
+        hit_object.add_grade(grade)
+        self._score += score
+
+    def _calculate_accuracy(self, time: float) -> float:
+        OD = self.beatmap.OD
+        # TODO
+        return 0
+
+    def _calculate_grade(self, accuracy: float) -> str:
+        # TODO
+        return 'perfect'
+
+    def _calculate_score(self, grade: str, type: HitObject.Type):
+        # TODO
+        return 300
+
+    @property
+    def score(self) -> int:
+        """ Returns current score """
+        return self._score
+
+    @property
+    def combo(self) -> int:
+        """ Returns current combo """
+        return self._combo
+
+    @property
+    def overall_grade(self) -> str:
+        """ Returns current overall grade """
+        if self._perfect:
+            return 'SS'
+        if self._not_missed:
+            return 'S'
+        # TODO
+        return 'A'
+
+    @property
+    def overall_accuracy(self) -> float:
+        """ Returns current overall accuracy in percent """
+        return sum(self._grade_stack) / len(self._grade_stack)
+
+    @property
+    def current_accuracies(self) -> Iterable[float]:
+        """ Returns current accuracies in accuracy """
+        return self._accuracy_stack
+
+
+class GraphicsEngine:
+    """ Manages graphical effects and background/video """
+
+    __slots__ = '_beatmap', '_time_engine', '_score_engine', '_keyboard', '_game'
+
+    def __init__(self, game: Game, beatmap: Beatmap, time_engine: TimeEngine, score_engine: ScoreEngine, keyboard: Keyboard):
+        self._game = game  # for update_rate and window only
+        self._beatmap = beatmap
+        self._time_engine = time_engine
+        self._score_engine = score_engine
+        self._keyboard = keyboard
+
+    def update(self):
+        """ Update graphics to match current data """
         pass
 
-    def time(self, audio: Audio):
-        """ Return current time of audio """
+    def on_draw(self):
+        """ Draws everything on the screen """
+        arcade.start_render()
+        self._draw_keyboard()
+
+        self._draw_current_fx()
+
+        self._draw_clock()
+        self._draw_combo()
+        self._draw_score()
+        self._draw_total_accuracy()
+        self._draw_overall_grade()
+        self._draw_accuracy_bar()
+
+        self._draw_fps()
+
+        self._draw_pointer()
+
+    def _draw_keyboard(self):
+        """ Draw keyboard """
+        self._keyboard.draw()
+
+    def _draw_current_fx(self):
+        """ Draw fx that are on-going """
         pass
+
+    def _draw_pointer(self):
+        """ Draw custom pointer """
+        pass
+
+    def _draw_clock(self):
+        """ Draw clock showing game progress """
+        pass
+
+    def _draw_combo(self):
+        """ Draw current combo"""
+        pass
+
+    def _draw_score(self):
+        """ Draw total score"""
+        pass
+
+    def _draw_total_accuracy(self):
+        """ Draw total accuracy """
+        pass
+
+    def _draw_overall_grade(self):
+        """ Draw overall grade """
+        pass
+
+    def _draw_accuracy_bar(self):
+        """ Draw accuracy bar """
+        pass
+
+    def _draw_grade_fx(self, key: Key, grade):
+        """ Draw fx showing grade of the beat pressed at `key`' """
+        pass
+
+    def _draw_key_press_fx(self, key: Key):
+        """ Draw fx showing key pressing at `key` """
+        pass
+
+    def _draw_key_release_fx(self, key: Key):
+        """ Draw fx showing key releasing at `key` """
+        pass
+
+    def _draw_fps(self):
+        """ Show FPS on screen """
+        fps = self._time_engine.fps
+        output = f"FPS: {fps:.1f}"
+        arcade.draw_text(output, 20, self._game.window.height // 2, arcade.color.WHITE, 16)
 
 
 def get_relative_path(path: Path, relative_root: Path = Path().resolve()):
@@ -257,8 +526,6 @@ def get_relative_path(path: Path, relative_root: Path = Path().resolve()):
 class Beatmap:
     """ Represents information from .osu + .msc files """
 
-    from constants import SAMPLE_NAMES
-
     def __init__(self, filepath: Path):
         """ Load information from file at path and create appropriate
         fields. """
@@ -267,7 +534,7 @@ class Beatmap:
             filepath = get_relative_path(filepath)
 
         self._filepath = filepath
-        self._loader = pyglet.resource.Loader([self.get_folder_path(absolute=True), '.'])
+        self._loader = pyglet.resource.Loader([str(self.get_folder_path(absolute=True)), '.'])
 
         if filepath.suffix == '.msc':
             raise NotImplementedError('.msc files not implemented yet')
@@ -337,6 +604,9 @@ class Beatmap:
                     except TypeError:
                         operation = ' '.join(func_map[key][1].split('_'))
                         warnings.warn(f"reading .osu file... failed to convert '{value}' {operation}")
+                    except ValueError as e:
+                        print(value, func_map['all'][0])
+                        raise e
                     container[key] = value
 
             self._metadata = {}
@@ -348,14 +618,14 @@ class Beatmap:
 
             self._difficulty = {}
             get_data(self._difficulty,
-                     ('HPDrainRate:','CircleSize::', 'OverallDifficulty:', 'ApproachRate:',
+                     ('HPDrainRate:', 'CircleSize:', 'OverallDifficulty:', 'ApproachRate:',
                       'SliderMultiplier:', 'SliderTickRate:'),
                      to_float='all')
 
             self._background_filename, self._video_filename = None, None
             read_until(f, '//Background and Video events')
             l = None
-            while l != '//Break Periods':
+            while l != '//Break Periods\n':
                 l = f.readline()
                 for elem in l.split('"'):
                     try:
@@ -383,6 +653,10 @@ class Beatmap:
                 i += 1
                 current_line = f.readline()
 
+    @property
+    def resource_loader(self):
+        """ Return resource loader of folder of beatmap file """
+        return self._loader
 
     def get_folder_path(self, absolute=False) -> Path:
         """ Return folder path of the instance """
@@ -390,31 +664,13 @@ class Beatmap:
             return Path().resolve() / self._filepath.parent
         return self._filepath.parent
 
-    def get_audio_path(self, absolute=False) -> Path:
-        """ Return path to the audio file-- the song (mostly .mp3) --of
-        the instance. """
-        if absolute:
-            return Path().resolve() / self._audio_filepath
-        return  self._audio_filepath
-
     @property
     def audio_filename(self) -> str:
-        """ Return name of the audio file """
+        """ Return name of the song file """
         return self._audio_filepath.name
 
-    @property
-    def audio(self) -> Audio:
-        """ Generate and return an audio object """
-        return Audio(filename=self.audio_filename, loader=self._loader)
-
-    def get_hit_sound_paths(self, absolute=False) -> List[Path]:
-        """ Return a list of paths to hit_sounds-- sounds a keypress
-        maps to (mostly .wav) --files of the instance. """
-        pass
-
-    @property
-    def hit_sound_filenames(self) -> List[str]:
-        """ Return names of the hit_sound files in the song's directory """
+    def get_samples_filenames(self) -> List[str]:
+        """ Return name of the custom sample that exists """
         filenames = []
         for name, path in self._sample.items():
             try:
@@ -424,52 +680,20 @@ class Beatmap:
                 pass
         return filenames
 
-    def hit_sounds(self) -> List[Audio]:
-        """ Generate and return a list of audio objects """
-        return [Audio(filepath=path) for path in self._sample.values()]
-
-    def get_hit_sound(self, name: str) -> Audio:
-        """ Generate and return an audio object """
-        assert name in Beatmap.SAMPLE_NAMES
-        return Audio(filepath=self._sample[name])
-
-    def get_background_path(self, absolute=False) -> Optional[Path]:
-        """ Return path to background image(s?) of the instance """
-        if self._background_filename is None:
-            return None
-        if absolute:
-            return self.get_folder_path(absolute=True) / self._background_filename
-        return self.get_folder_path() / self._background_filename
-
-    @property
-    def background_filename(self) -> Optional[str]:
-        """ Return name of the background image file """
-        if self._background_filename is None:
-            return self._background_filename
-
-    def background_image(self) -> pyglet.image.AbstractImage:
-        """ Generate and return an image that can be drawn """
-        pass
-
-    def get_video_path(self, absolute=False) -> Optional[Path]:
-        """ Return path to video of the instance """
-        if self._video_filename is None:
-            return None
-        if absolute:
-            return self.get_folder_path(absolute=True) / self._video_filename
-        return self.get_folder_path() / self._video_filename
-
-    @property
-    def video_filename(self) -> Optional[str]:
-        """ Return name of the video file """
-        if self._video_filename is None:
-            return None
-        return self._video_filename
-
-    def video(self) -> pyglet.media.Source:
+    def generate_video(self) -> pyglet.media.Source:
         """ Generate and return a video that can be played, played, paused, replayed
         , and set time. """
         pass
+
+    def generate_hit_objects(self, score_engine: ScoreEngine) -> List[HitObject]:
+        """ Generate and return a list of processed hit_objects """
+        from random import choice
+        import key
+        hit_objects = [
+            HitObject(self, score_engine, hit_time, choice(key.normal_keys), HitObject.TYPE.TAP)
+            for hit_time in self._hit_times
+        ]
+        return hit_objects
 
     @property
     def version(self) -> str:
@@ -496,9 +720,71 @@ class Beatmap:
         """ Return the approach rate of the instance """
         return self._difficulty['ApproachRate']
 
-    def hit_objects(self) -> List[HitObject]:
-        """ Return a list of processed hit_objects of the instance """
-        pass
+    # def get_audio_path(self, absolute=False) -> Path:
+    #     """ Return path to the audio file-- the song (mostly .mp3) --of
+    #     the instance. """
+    #     if absolute:
+    #         return Path().resolve() / self._audio_filepath
+    #     return  self._audio_filepath
+    #
+
+    # def generate_audio(self) -> Audio:
+    #     """ Generate and return an audio player object """
+    #     pass
+    #     # return Audio(filename=self.audio_filename, loader=self._loader)
+
+    # def get_hit_sound_paths(self, absolute=False) -> List[Path]:
+    #     """ Return a list of paths to hit_sounds-- sounds a keypress
+    #     maps to (mostly .wav) --files of the instance. """
+    #     pass
+    #
+
+    # def generate_hit_sounds(self) -> List[Audio]:
+    #     """ Generate and return a list of audio objects """
+    #     return [Audio(filepath=path) for path in self._sample.values()]
+    #
+    # def get_hit_sound(self, name: str) -> Audio:
+    #     """ Generate and return an audio object """
+    #     assert name in Beatmap.SAMPLE_NAMES
+    #     return Audio(filepath=self._sample[name])
+    #
+    # def get_background_path(self, absolute=False) -> Optional[Path]:
+    #     """ Return path to background image(s?) of the instance """
+    #     if self._background_filename is None:
+    #         return None
+    #     if absolute:
+    #         return self.get_folder_path(absolute=True) / self._background_filename
+    #     return self.get_folder_path() / self._background_filename
+    #
+    # @property
+    # def background_filename(self) -> Optional[str]:
+    #     """ Return name of the background image file """
+    #     if self._background_filename is None:
+    #         return self._background_filename
+    #
+    # def background_image(self) -> pyglet.image.AbstractImage:
+    #     """ Generate and return an image that can be drawn """
+    #     pass
+    #
+    # def get_video_path(self, absolute=False) -> Optional[Path]:
+    #     """ Return path to video of the instance """
+    #     if self._video_filename is None:
+    #         return None
+    #     if absolute:
+    #         return self.get_folder_path(absolute=True) / self._video_filename
+    #     return self.get_folder_path() / self._video_filename
+    #
+    # @property
+    # def video_filename(self) -> Optional[str]:
+    #     """ Return name of the video file """
+    #     if self._video_filename is None:
+    #         return None
+    #     return self._video_filename
+    #
+    # def video(self) -> pyglet.media.Source:
+    #     """ Generate and return a video that can be played, played, paused, replayed
+    #     , and set time. """
+    #     pass
 
 
 class HitObject:
@@ -519,37 +805,38 @@ class HitObject:
 
     __slots__ = (
         '_reach_times',
-        '_start_times',
+        '_animation_times',
         '_symbol',
         '_type',
-        '_hit_sound',
         '_press_times',
+        '_grades',
         '_beatmap',
+        '_engine',
         '_state',
-        '_combo'
     )
 
     def __init__(self,
                  beatmap: Beatmap,
+                 engine: ScoreEngine,
                  time: Union[Iterable[float], float],
                  symbol: Union[Iterable[int], int],
                  note_type: Type):
         """  """
         self._reach_times, self._symbol = self._filter_input(time, symbol, note_type)
         self._type = note_type
-        self._hit_sound = beatmap.get_hit_sound(HitObject.TYPE_NAME_MAP[note_type])
-        self._calculate_start_time(beatmap.BPM, beatmap.AR)
+        self._calculate_animation_times(beatmap.BPM, beatmap.AR)
         self._beatmap = beatmap
+        self._engine = engine
         self._state = HitObject.STATE.INACTIVE
-        self._combo = None
+        self._grades = []
 
     def _filter_input(self,
                       time: Union[Iterable[float], float],
                       symbol: Union[Iterable[int], int],
                       note_type: Type) -> (Iterable[float], Iterable[int]):
-        """ Check and return correct input or raise AssertionError """
+        """ Check and return correct input (in list) or raise AssertionError """
         error = 0
-        error_msg = "'time' and 'symbol' must be of len {} in case of HOLD note_type"
+        error_msg = "'time' and 'symbol' must be of len 2 in case of HOLD note_type"
         if note_type == HitObject.TYPE.TAP:
             try:
                 assert len(time) == 1, error_msg.format(1)
@@ -570,54 +857,61 @@ class HitObject:
             raise AssertionError(error_msg.format(error))
         return time, symbol
 
-    def _calculate_start_time(self, BPM: float, AR: float):
-        """ Set the start_time"""
+    def _calculate_animation_times(self, BPM: float, AR: float):
+        """ Set the _animation_times """
         assert BPM > 0
         assert 0 <= AR <= 10
         AR = AR / 2
         beat = 60 / BPM  # seconds
         delay = beat * (1 + (10 - AR) / 3)  # seconds
-        self._start_times = [reach_time - delay for reach_time in self._reach_times]  # seconds
+        self._animation_times = [reach_time - delay for reach_time in self._reach_times]  # seconds
+
+    def press(self, time: float):
+        """ Mark `time` as a press_time if pressable.
+        Raise TimeoutError if not pressable """
+        if self.state == HitObject.STATE.ACTIVE:
+            self._press_times.append(time)
+            self._engine.register_hit(self, time, self._type)
+        else:
+            raise TimeoutError('object is not pressable')
+        if len(self._press_times) == HitObject.TYPE_MAXLEN_MAP[self._type]:
+            self._state = HitObject.STATE.PASSED
+
+    # @property
+    # def reach_times(self) -> List[float]:
+    #     """ Return list of times in relation to game_time (seconds)
+    #     object needs to be interacted with by the player. """
+    #     pass
+    #
+    # @property
+    # def reach_times_ms(self) -> List[int]:
+    #     """ Return reach_time in milliseconds """
+    #     pass
 
     @property
-    def reach_time(self) -> float:
-        """ Return the time (seconds) in relation to game_time the
-        instance need to be hit. """
-        return self._reach_times[0]
+    def animation_times(self) -> List[float]:
+        """ Return list of times in relation to game_time (seconds)
+        graphics engine need to do animations. """
+        return self._animation_times
 
     @property
-    def reach_time_ms(self) -> int:
-        """ Return the time (milliseconds) in relation to game_time the
-        instance need to be hit. """
-        return int(self._reach_times[0] * 1000)
+    def animation_times_ms(self) -> List[int]:
+        """ Return animation_time in milliseconds """
+        return [int(time * 1000) for time in self._animation_times]
 
-    @property
-    def start_time(self) -> float:
-        """ Return the time (seconds) in relation to game_time the
-        instance need to start coming in. """
-        return self._start_times[0]
-
-    @property
-    def start_time_ms(self) -> int:
-        """ Return the time (milliseconds) in relation to game_time the
-        instance need to coming in. """
-        return int(self._start_times[0] * 1000)
-
-    @property
-    def stop_time(self) -> float:
-        """ Return the time (seconds) in relation to game_time the
-        instance need to stop coming in. """
-        return self._start_times[1]
-
-    @property
-    def stop_time_ms(self) -> int:
-        """ Return the time (milliseconds) in relation to game_time the
-        instance need to stop coming in. """
-        return int(self._start_times[1] * 1000)
+    # @property
+    # def press_times(self) -> List[float]:
+    #     """ Return list of times object has been interacted with """
+    #     pass
+    #
+    # @property
+    # def press_times_ms(self) -> List[int]:
+    #     """ Return press_times in milliseconds """
+    #     pass
 
     @property
     def symbol(self) -> int:
-        """ Return the symbol of the key the instance need to come in """
+        """ Return symbol of the key the object is scheduled to come in """
         return self._symbol
 
     @symbol.setter
@@ -626,36 +920,33 @@ class HitObject:
         # TODO add checking
         self._symbol = new_symbol
 
-    def sound(self) -> Audio:
-        """ Play hit_sound """
-        return self._hit_sound.play()
+    @property
+    def hit_sound(self) -> int:
+        """ Return hit_sounds of object """
+        # TODO only return normal for now
+        return 0
 
     @property
-    def state(self) -> HitObject.Type:
-        """ Return the current state of the instance """
+    def type(self) -> HitObject.Type:
+        """ Return type of object """
         return self._type
 
     @property
-    def grade(self) -> Optional[str]:
-        """ Return the grade of the instance if gradable.
-        None otherwise. """
-        if self._type != HitObject.STATE.PASSED:
-            return
-        grade = 'Perfect'  # TODO FIND A RUBRIC
-        if grade in ('Bad', 'Good', 'Perfect'):
-            self._combo += 1
-        return grade
+    def grades(self) -> Optional[Iterable[str]]:
+        """ Return grade of the object if graded. None otherwise. """
+        return self._grades
 
-    def press(self, time: float, current_combo: int):
-        """ Mark `time` as a press time if pressable.
-        Return grade if gradable. Raise TimeoutError if not pressable """
-        if self.state == HitObject.STATE.ACTIVE:
-            self._press_times.append(time)
-            self._combo = current_combo
+    def add_grade(self, grade: str):
+        # TODO add checking
+        if len(self._grades) < HitObject.TYPE_MAXLEN_MAP[self._type]:
+            self._grades.append(grade)
         else:
-            raise TimeoutError('object is not pressable')
-        if len(self._press_times) == HitObject.TYPE_MAXLEN_MAP[self._type]:
-            self._state = HitObject.STATE.PASSED
+            print(f'Over maxlen, did not process {grade}')
+
+    @property
+    def state(self) -> HitObject.State:
+        """ Return current state of object """
+        return self._state
 
     def _dt(self) -> List[float]:
         """ Return the time difference (seconds) between reach_time and
@@ -665,28 +956,11 @@ class HitObject:
         # TODO
         return [press - reach for press, reach in zip(self._press_times, self._reach_times)]
 
-    def _cal_accuracy(self, dt: float) -> float:
-        """ Calculate accuracy of given dt """
-        pass  # TODO FIND A RUBRIC
-
-    @property
-    def accuracy(self) -> Optional[float]:
-        """ Return the accuracy of the instance if gradable.
-        None otherwise. """
-        pass  # TODO FIND A RUBRIC
-
-    @property
-    def combo(self) -> Optional[int]:
-        """ Return combo at the time the instance was hit. Include the
-        instance in the calculation as well. """
-        if self._combo is not None:
-            return self._combo
-
 
 class Key:
     """ Represents a key on the virtual keyboard """
     def __init__(self):
-        self._hit_object: HitObject = HitObject()
+        self._hit_object: HitObject = None
 
     @property
     def hit_object(self) -> Optional[HitObject]:
@@ -694,72 +968,42 @@ class Key:
         if self._hit_object:
             return self._hit_object
 
-    def update(self):
-        """ Advance the instance by one frame """
-        pass
-
     def draw(self):
-        """ Draw current frame """
-        pass
-
-    def recreate_buffer(self):
-        """ Create VBO object used to draw """
-        pass
-
-    def on_update(self):
-        """ Do things that needs to be done and advance frame as
-        appropriate. """
+        """ Draw the element """
         pass
 
     def press(self):
-        """ Play appropriate graphics for pressing key """
         pass
 
     def release(self):
-        """ Play appropriate graphics for releasing key """
         pass
 
-    def on_key_press(self, symbol: int, modifiers: int):
-        """ Handle key pressing event """
-        pass
-
-    def on_key_release(self, symbol: int, modifiers: int):
-        """ Handle key releasing event """
-        pass
-
-    def setup_animation_stack(self, style, color):
-        """ Stores a VBO generator used for the animation """
-        pass
-
+    @property
     def state(self):
-        """ Return the current state of the instance """
+        """ Return the current state of the key """
         pass
 
 
 class KeyboardModel:
     """ Data collection for different keyboard types """
     def __int__(self):
-        self._size: float
-        self._height: float
-        self._keys: dict
+        pass
 
 
 class Keyboard:
     """ Represents the board behind keys """
-    def __init__(self):
-        self.keys: Dict[int, Key] = {}
-
-    def update(self):
-        """ Update the element """
-        pass
+    def __init__(self, center_x: int, center_y: int):
+        self.keys: Dict[int, Key]
+        keyboard_.set_scaling(5)
+        self.keyboard = keyboard_.Keyboard(center_x, center_y,
+                                           model='small notebook',
+                                           color=arcade.color.LIGHT_BLUE,
+                                           alpha=150)
+        self.keys = {k: Key() for k in self.keyboard.keys.keys()}
 
     def draw(self):
         """ Draw the element """
-        pass
-
-    def recreate_buffer(self):
-        """ Create VBO object used to draw """
-        pass
+        self.keyboard.draw()
 
     def location(self) -> (int, int) :
         """ Return the current location in pixels """
@@ -769,118 +1013,37 @@ class Keyboard:
         """ Move the keyboard (and its keys) to new location """
         pass
 
+    def on_key_press(self, symbol: int, modifiers: int, time: float):
+        self.keyboard.keys[symbol].on_key_press(symbol, modifiers)
+        try:
+            key = self.keys[symbol]
+        except KeyError:
+            key = None
+        if key:
+            key.press()
+            hit_object = key.hit_object
+            if hit_object:
+                hit_object.press(time)
 
-class Clock:
-    """ Represents on-screen clock showing game progress """
-    def __init__(self, time_engine: TimeEngine, beatmap: Beatmap):
-        self._time_engine = time_engine
-        self._time = 0
-        self._duration = beatmap.audio.duration
-        pass
-
-    def update(self):
-        """ Update the element """
-        self._time = self._time_engine.game_time
-
-    def draw(self):
-        """ Draw the element """
-        ratio = self._time / self._duration
-        # TODO make a draw function
-
-
-class Score:
-    """ Represents on-screen score """
-    def __init__(self):
-        self._score = 0
-        pass
-
-    def update(self):
-        """ Update the element's graphic component to match data """
-        pass
-
-    def draw(self):
-        """ Draw the graphical representation of the element """
-        pass
-
-    @property
-    def score(self):
-        """ Return current score """
-        return self._score
-
-    def __iadd__(self, other: int):
-        """ Add the current score by `other` """
-        self._score += other
-
-
-class Combo:
-    """ Represents on-screen combo """
-    def __init__(self):
-        self._combo = [0]  # type: List[int]
-
-    def update(self):
-        """ Update the element's graphic component to match data """
-        pass
-
-    def draw(self):
-        """ Draw the graphical representation of the element """
-        pass
-
-    @property
-    def combo(self) -> int:
-        """ Return current combo """
-        return self._combo[-1]
-
-    def break_(self):
-        """ Break the current combo """
-        self._combo.append(0)
-
-    def __iadd__(self, other: int):
-        """ Add to the current combo by `other` """
-        self._combo[-1] += other
-
-
-class AccuracyBar:
-    """ Represents on-screen accuracy bar """
-    DEFAULT_LEN = 10
-
-    def __init__(self):
-        from collections import deque
-        self._stack = deque(maxlen=AccuracyBar.DEFAULT_LEN)
-
-    def update(self):
-        """ Update the element's graphic component to match data """
-        pass
-
-    def draw(self):
-        """ Draw the graphical representation of the element """
-        pass
-
-    def average_accuracy(self):
-        """ Return current average accuracy """
-        return sum(self._stack) / len(self._stack)
-
-    def stack_len(self):
-        """ Return the number of last hit_objects used to calculate
-        average_accuracy and shown on-screen. """
-        return self._stack.maxlen
-
-    def set_stack_len(self, new_len: int):
-        """ Change stack_len to new_len """
-        from collections import deque
-        old = self._stack
-        self._stack = deque(maxlen=new_len)
-        self._stack.extend(old)
-
-    def __iadd__(self, other: float):
-        """ Add new accuracy to bar """
-        self._stack.append(other)
+    def on_key_release(self, symbol: int, modifiers: int, time: float):
+        self.keyboard.keys[symbol].on_key_release(symbol, modifiers)
+        try:
+            key = self.keys[symbol]
+        except KeyError:
+            key = None
+        if key:
+            key.release()
+            hit_object = key.hit_object
+            if hit_object:
+                if hit_object.type == HitObject.TYPE.HOLD:
+                    hit_object.press(time)
 
 
 class Game:
     """ """
     from constants import GameState as State, GAME_STATE as STATE
 
-    def __int__(self, song: str, difficulty: str):
+    def __init__(self, width, height, song: str, difficulty: str):
         filepath = self.get_beatmap_filepath(song, difficulty)
         if filepath is None:
             print('loading song... failed to get filepath')
@@ -891,74 +1054,64 @@ class Game:
                 filepath = a
             else:
                 quit()
+        print(1)
+        self._beatmap = Beatmap(filepath)
+        print(2)
+        self._score_engine = ScoreEngine(beatmap=self._beatmap)
+        print(3)
+        self._time_engine = TimeEngine()
+        print(4)
+        self._audio_engine = AudioEngine(beatmap=self._beatmap, time_engine=self._time_engine)
+        print(5)
+        self._keyboard = Keyboard(width//2, height//2)
+        print(6)
+        self._graphics_engine = GraphicsEngine(self, beatmap=self._beatmap, time_engine=self._time_engine, score_engine=self._score_engine, keyboard=self._keyboard)
+        print(7)
 
-        self.time_engine = TimeEngine()
-        self.audio_engine = AudioEngine()
-        self.beatmap = Beatmap(filepath)
-        self.keyboard = Keyboard()
-        self.clock = Clock(self.time_engine, self.beatmap)
-        self.score = Score()
-        self.combo = Combo()
-        self.accuracy_bar = AccuracyBar()
-
-        self.hit_objects = self.beatmap.hit_objects()
-        self._state = Game.STATE.GAME_PLAYING
+        self._hit_objects = self._beatmap.generate_hit_objects(score_engine=self._score_engine)
+        print(8)
+        self._state = Game.STATE.GAME_PAUSED
+        print(9)
         self._update_rate = 1/60
 
+    def set_window(self, window: arcade.Window):
+        self.window = window
+
+    def start(self):
+        """ Start the game """
+        self._state = Game.STATE.GAME_PLAYING
+        self._audio_engine.song.play()
+        self._time_engine.reset()
+
+    def pause(self):
+        """ Pause the game """
+        pass
+
     def update(self, delta_time: float):
-        self.keyboard.update()
+        self._graphics_engine.update()
 
     def on_update(self, delta_time: float):
         pass
 
     def on_draw(self):
         """ This is called during the idle time when it should be called """
-        self.time_engine.tick()
-        self.keyboard.draw()
-        self.clock.draw()
-        self.score.draw()
-        self.combo.draw()
-        self.accuracy_bar.draw()
+        self._time_engine.tick()
+        self._graphics_engine.on_draw()
+
+    def on_resize(self, width: float, height: float):
+        pass
 
     def on_key_press(self, symbol: int, modifiers: int):
-        try:
-            key = self.keyboard.keys[symbol]
-        except KeyError:
-            key = None
-        if key:
-            time = self.time_engine.game_time
-            key.press()
-            hit_object = key.hit_object
-            if hit_object:
-                hit_object.press(time, self.combo.combo)
-                if hit_object.combo > self.combo.combo:
-                    pass
-                else:
-                    self.combo.break_()
-                self.combo += hit_object.new_combo - self.combo.combo
-                self.accuracy_bar += hit_object.accuracy
-                self.score += hit_object.new_score
-
+        if symbol == key_.P:
+            self.start()
+        if symbol == 99 and modifiers & 1 and modifiers & 2:
+            # CTRL + SHIFT + C to close, for fullscreen emergency
+            # TODO: Find a good way to exit
+            pyglet.app.exit()
+        self._keyboard.on_key_press(symbol, modifiers, self._time_engine.game_time)
 
     def on_key_release(self, symbol: int, modifiers: int):
-        try:
-            key = self.keyboard.keys[symbol]
-        except KeyError:
-            key = None
-        if key:
-            time = self.time_engine.game_time
-            key.release()
-            key.press()
-            hit_object = key.hit_object
-            if hit_object:
-                hit_object.press(time, self.combo.combo)
-                if hit_object.combo > self.combo.combo:
-                    pass
-                else:
-                    self.combo.break_()
-                self.combo += hit_object.combo - self.combo.combo
-                self.accuracy_bar += hit_object.accuracy
-                self.score += hit_object.score
+        self._keyboard.on_key_release(symbol, modifiers, self._time_engine.game_time)
 
     def on_mouse_press(self, x: float, y: float, button: int, modifiers: int):
         pass
@@ -973,69 +1126,88 @@ class Game:
     def on_mouse_scroll(self, x: int, y: int, scroll_x: int, scroll_y: int):
         pass
 
-    def set_update_rate(self, rate: float):
-        """ Set the update rate. Cascade throughout the objects. """
-        self.keyboard.set_update_rate(rate)
-        self._update_rate = rate
+    @property
+    def update_rate(self):
+        """ Return the update rate (ideal FPS) """
+        return self._update_rate
+
+    @update_rate.setter
+    def update_rate(self, new_rate: float):
+        """ Set the update rate (ideal FPS) """
+        assert isinstance(new_rate, float)
+        self._update_rate = new_rate
 
     @property
     def state(self):
         """ Return current state of the instance """
         return self._state
 
-    def get_beatmap_filepath(self, song: str, difficulty: str) -> Path:
+    @staticmethod
+    def get_beatmap_filepath(song: str, difficulty: str) -> Optional[Path]:
         """ Return the filepath to .osu file given the name and
         difficulty of the song. """
-        songs = Path('resources/Songs').rglob(f'*{song}')
+        songs = Path('resources/Songs').rglob(f'*{song}*')
         try:
-            song = songs.__next__()
-            return song
+            for song in songs:
+                if difficulty in song.name:
+                    return song
         except StopIteration:
-            return None
+            return
+        return
 
 
 class GameWindow(arcade.Window):
     def __init__(self):
         """ Create game window """
+
         super().__init__(1920, 1080, "musicality",
-                         fullscreen=True, resizable=False, update_rate=1/60)
+                         fullscreen=False, resizable=False, update_rate=1/60)
+
+        arcade.set_background_color(arcade.color.BLACK)
+        self.game = Game(1920, 1080, 'Sayonara no Yukue', 'Insane')
+        self.game.set_window(self)
+
 
     def update(self, delta_time: float):
-        pass
+        self.game.update(delta_time)
 
     def on_update(self, delta_time: float):
-        pass
+        self.game.on_update(delta_time)
 
     def on_draw(self):
-        pass
+        self.game.on_draw()
+
+    def on_resize(self, width: float, height: float):
+        self.game.on_resize(width, height)
 
     def on_key_press(self, symbol: int, modifiers: int):
-        pass
+        self.game.on_key_press(symbol, modifiers)
 
     def on_key_release(self, symbol: int, modifiers: int):
-        pass
+        self.game.on_key_release(symbol, modifiers)
 
     def on_mouse_press(self, x: float, y: float, button: int, modifiers: int):
-        pass
+        self.game.on_mouse_press(x, y, button, modifiers)
 
     def on_mouse_drag(self, x: float, y: float, dx: float, dy: float,
                       buttons: int, modifiers: int):
-        pass
+        self.game.on_mouse_drag(x, y, dx, dy, buttons, modifiers)
 
     def on_mouse_release(self, x: float, y: float, button: int, modifiers: int):
-        pass
+        self.game.on_mouse_release(x, y, button, modifiers)
 
     def on_mouse_scroll(self, x: int, y: int, scroll_x: int, scroll_y: int):
-        pass
-
-    def update_rate(self):
-        """ Return the current ideal update rate """
-        pass
-
-    def set_update_rate(self, rate: float):
-        """ Set the update rate. Cascade throughout the objects. """
-        pass
+        self.game.on_mouse_scroll(x, y, scroll_x, scroll_y)
 
     def state(self):
         """ Return current state of the instance """
-        pass
+        return self.game.state
+
+
+def main():
+    GameWindow()
+    arcade.run()
+
+
+if __name__ == "__main__":
+    main()

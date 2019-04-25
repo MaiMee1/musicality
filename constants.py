@@ -34,3 +34,11 @@ GAME_STATE = _temp(*map(GameState, range(6)))
 _temp = namedtuple('HitSoundConstant', ['CLAP', 'FINISH', 'WHISTLE', 'NORMAL'])
 HIT_SOUND = _temp(8, 4, 2, 0)
 
+HIT_SOUND_MAP = {
+    0: ('hitnormal',), 2: ('hitnormal', 'hitwhistle',), 4: ('hitnormal', 'hitfinish',), 8: ('hitnormal', 'hitclap',),
+    6: ('hitnormal', 'hitwhistle', 'hitfinish'), 10: ('hitnormal', 'hitwhistle', 'hitclap'),
+    12: ('hitnormal', 'hitfinish', 'hitclap'), 14: ('hitnormal', 'hitwhistle', 'hitfinish', 'hitclap')
+}
+
+
+"""Finished Master's degree 5 years ago; finished doctorate if useful; have job experience somewhere good; get life going; found someone; have enough money to use and send to parents; made something useful that made headlines; """

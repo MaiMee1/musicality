@@ -163,11 +163,6 @@ class AudioEngine:
     def __init__(self, beatmap: Beatmap, time_engine: TimeEngine):
         pass
 
-    # def load_song(self, song_path: Optional[Path]):
-    #     """ Get things going. (Re)Load file from path and initialize
-    #     for playing. Set game_time to zero - wait_time. """
-    #     pass
-
     def register(self, *audio: Tuple[Audio]):
         """ Register the audio file the let audio engine handle it """
         pass
@@ -199,6 +194,14 @@ class AudioEngine:
 
     def restart(self, audio: Audio):
         """ Play the audio again from the beginning """
+        pass
+
+    def seek(self, audio: Audio, time: Union[str, int ,float]):
+        """ Seek audio to `time` """
+        pass
+
+    def time(self, audio: Audio):
+        """ Return current time of audio """
         pass
 
 
@@ -233,35 +236,39 @@ class GraphicsEngine:
     def __int__(self, beatmap: Beatmap, time_engine: TimeEngine, score_engine: ScoreEngine):
         pass
 
-    def draw_pointer(self):
+    def on_draw(self):
+        """ Draws everything on the screen """
+        pass
+
+    def _draw_pointer(self):
         """ Draw custom pointer """
         pass
 
-    def draw_clock(self):
+    def _draw_clock(self):
         """ Draw clock showing game progress """
         pass
 
-    def draw_combo(self):
+    def _draw_combo(self):
         """ Draw current combo"""
         pass
 
-    def draw_score(self):
+    def _draw_score(self):
         """ Draw total score"""
         pass
 
-    def draw_accuracy_bar(self):
+    def _draw_accuracy_bar(self):
         """ Draw accuracy bar """
         pass
 
-    def draw_grade_fx(self, key: Key, grade):
+    def _draw_grade_fx(self, key: Key, grade):
         """ Draw fx showing grade of the beat pressed at `key`' """
         pass
 
-    def draw_key_press_fx(self, key: Key):
+    def _draw_key_press_fx(self, key: Key):
         """ Draw fx showing key pressing at `key` """
         pass
 
-    def draw_key_release_fx(self, key: Key):
+    def _draw_key_release_fx(self, key: Key):
         """ Draw fx showing key releasing at `key` """
         pass
 
@@ -278,71 +285,30 @@ class Beatmap:
         fields. """
         pass
 
+    @property
+    def resource_loader(self):
+        """ Return resource loader of folder of beatmap file """
+        pass
+
 
     def get_folder_path(self, absolute=False) -> Path:
         """ Return folder path of the instance """
         pass
 
-    def get_audio_path(self, absolute=False) -> Path:
-        """ Return path to the audio file-- the song (mostly .mp3) --of
-        the instance. """
-        pass
-
-    @property
-    def audio_filename(self) -> str:
+    def get_audio_filename(self) -> str:
         """ Return name of the audio file """
         pass
 
-    @property
-    def audio(self) -> Audio:
-        """ Generate and return an audio player object """
+    def get_samples_filenames(self) -> List[str]:
+        """ Return name of the custom sample that exists """
         pass
 
-    def get_hit_sound_paths(self, absolute=False) -> List[Path]:
-        """ Return a list of paths to hit_sounds-- sounds a keypress
-        maps to (mostly .wav) --files of the instance. """
-        pass
-
-    @property
-    def hit_sound_filenames(self) -> List[str]:
-        """ Return names of the hit_sound files in the song's directory """
-        pass
-
-    def hit_sounds(self) -> List[Audio]:
-        """ Generate and return a list of audio objects """
-        pass
-
-    def get_hit_sound(self, name: str) -> Audio:
-        """ Generate and return an audio object """
-        pass
-
-    def get_background_path(self, absolute=False) -> Optional[Path]:
-        """ Return path to background image(s?) of the instance """
-        pass
-
-    @property
-    def background_filename(self) -> Optional[str]:
-        """ Return name of the background image file """
-        pass
-
-    def background_image(self) -> pyglet.image.AbstractImage:
-        """ Generate and return an image that can be drawn """
-        pass
-
-    def get_video_path(self, absolute=False) -> Optional[Path]:
-        """ Return path to video of the instance """
-        pass
-
-    @property
-    def video_filename(self) -> Optional[str]:
-        """ Return name of the video file """
-
-    def video(self) -> pyglet.media.Source:
+    def generate_video(self) -> pyglet.media.Source:
         """ Generate and return a video that can be played, played, paused, replayed
         , and set time. """
         pass
 
-    def hit_objects(self) -> List[HitObject]:
+    def generate_hit_objects(self) -> List[HitObject]:
         """ Generate and return a list of processed hit_objects """
         pass
 
@@ -396,13 +362,9 @@ class HitObject:
                  **kwargs):
         pass
 
-    def press(self, time: float, current_combo: int):
+    def press(self, time: float):
         """ Mark `time` as a press_time if pressable.
         Raise TimeoutError if not pressable """
-        pass
-
-    def _grade(self):
-        """ Try grading the object """
         pass
 
     # @property
@@ -423,7 +385,7 @@ class HitObject:
         pass
 
     @property
-    def animation_times(self) -> List[int]:
+    def animation_times_ms(self) -> List[int]:
         """ Return animation_time in milliseconds """
         pass
 
@@ -459,7 +421,7 @@ class HitObject:
 
     @property
     def grade(self) -> Optional[str]:
-        """ Return grade of the object if gradable. None otherwise. """
+        """ Return grade of the object if graded. None otherwise. """
         pass
 
     @property
