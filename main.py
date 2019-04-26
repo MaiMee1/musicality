@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 from io import StringIO
-from typing import Any, Union, Optional, Tuple, List, Dict, NewType, TextIO, Iterable, Callable
+from typing import Any, Union, Optional, Tuple, List, Dict, NewType, TextIO, Iterable, Callable, Hashable
 import warnings
+from random import random
 
 import arcade
 import pyglet
@@ -364,33 +365,38 @@ class ScoreEngine:
         from collections import deque
         self.beatmap = beatmap
         self._score = 0
-        self._combo = 0
+        self._combo = [0]
         self._perfect = True
         self._not_missed = True
         self._accuracy_stack = deque(maxlen=20)
         self._grade_stack = []
 
     def register_hit(self, hit_object: HitObject, time: float, type: HitObject.Type):
+        """ `time` = -1 for misses """
         # TODO
         accuracy = self._calculate_accuracy(time)
         grade = self._calculate_grade(accuracy)
         score = self._calculate_score(grade, type)
+
+        if time == -1:
+            grade = 'miss'
+            score = 0
 
         self._accuracy_stack.append(accuracy)
         self._grade_stack.append(abs(1-accuracy))
         if self._perfect:
             if grade != 'perfect':
                 self._perfect = False
-        if grade != 'miss':
-            self._combo += 1
-        else:
+        if grade == 'miss':
+            self._break_combo()
             if self._not_missed:
                 self._not_missed = False
+        else:
+            self._combo[-1] += 1
         hit_object.add_grade(grade)
         self._score += score
 
     def _calculate_accuracy(self, time: float) -> float:
-        OD = self.beatmap.OD
         # TODO
         return 0
 
@@ -410,7 +416,10 @@ class ScoreEngine:
     @property
     def combo(self) -> int:
         """ Returns current combo """
-        return self._combo
+        return self._combo[-1]
+
+    def _break_combo(self):
+        self._combo.append(0)
 
     @property
     def overall_grade(self) -> str:
@@ -435,19 +444,20 @@ class ScoreEngine:
 
 class FX:
     """ Represents a graphical fx """
-    def __init__(self, graphics_engine: GraphicsEngine, start_time: float, finish_time: float, draw_function: callable, on_del: callable, *args):
-        """ :param args: draw function argument """
-        self._engine = graphics_engine
+    def __init__(self, graphics_engine: GraphicsEngine, time_engine: TimeEngine, start_time: float, finish_time: float, draw_function: callable, object_with_references: Iterable, *args):
+        """ :param args: draw function's arguments """
+        self._graphics_engine = graphics_engine
+        self._time_engine = time_engine
         self._start_time = start_time
         self._finish_time = finish_time
         self._draw = draw_function
         self.args = args
-        self._on_del = on_del
+        self._object_with_references = object_with_references
 
-    def draw(self, current_time: float, fps: float):
-        elapsed = current_time - self._start_time
+    def draw(self):
+        elapsed = self._time_engine.game_time - self._start_time
         total = self._finish_time - self._start_time
-        self._draw(*self.args, fps=fps, elapsed=elapsed, total=total)
+        self._draw(*self.args, fps=self._time_engine.fps, elapsed=elapsed, total=total)
 
     @property
     def start_time(self):
@@ -457,9 +467,13 @@ class FX:
     def finish_time(self):
         return self._finish_time
 
-    def __del__(self):
-        self._engine.remove_fx(self)
-        self._on_del()
+    def kill(self):
+        self._graphics_engine.remove_fx(fx=self)
+        for elem in self._object_with_references:
+            try:
+                elem.remove_fx(self)
+            except AttributeError:
+                pass
 
 
 class GraphicsEngine:
@@ -467,7 +481,7 @@ class GraphicsEngine:
 
     import arcade.color as COLOR
 
-    __slots__ = '_beatmap', '_time_engine', '_score_engine', '_keyboard', '_game', '_fxs', '_current_time'
+    __slots__ = '_beatmap', '_time_engine', '_score_engine', '_keyboard', '_game', '_fxs', '_current_time', '_bg'
 
     def __init__(self, game: Game, beatmap: Beatmap, time_engine: TimeEngine, score_engine: ScoreEngine, keyboard: Keyboard):
         self._game = game  # for update_rate and window only
@@ -476,17 +490,16 @@ class GraphicsEngine:
         self._score_engine = score_engine
         self._keyboard = keyboard
 
-        self._fxs = []  # type: List[FX]
+        self._fxs = {}  # type: Dict[object, FX]
 
         self._current_time = 0
+
+        path = '/'.join(str(self._beatmap.get_folder_path()).split('\\')) + '/' + self._beatmap.background_filename
+        self._bg = arcade.load_texture(file_name=path)
 
     def update(self):
         """ Update graphics to match current data """
         self._current_time = self._time_engine.game_time
-        for fx in self._fxs.copy():
-            if fx.finish_time < self._current_time:
-                self._fxs.remove(fx)
-                del fx
 
     def force_update(self):
         self._keyboard.change_resolved = False
@@ -496,6 +509,8 @@ class GraphicsEngine:
     def on_draw(self):
         """ Draws everything on the screen """
         arcade.start_render()
+
+        self._draw_background()
 
         self._draw_keyboard()
 
@@ -512,6 +527,10 @@ class GraphicsEngine:
         self._draw_fps()
 
         self._draw_pointer()
+
+    def _draw_background(self):
+        scale = min(self._game.window.width / self._bg.width, self._game.window.height / self._bg.height)
+        self._bg.draw(self._game.window.width//2, self._game.window.height//2, self._bg.width*scale, self._bg.height*scale)
 
     def _draw_keyboard(self):
         """ Draw keyboard """
@@ -533,19 +552,30 @@ class GraphicsEngine:
         for shape in [keyboard.shape] + [key.shape for key in keyboard.keys.values()]:
             shape.draw()
 
-    def _register_fx(self, fx: FX):
+    def _register_fx(self, fx: FX, hash = None):
         """ Add `fx` to to-draw stack """
-        self._fxs.append(fx)
+        if hash is None:
+            number = self._time_engine.game_time + random()
+            self._fxs[number.__hash__()] = fx
+        else:
+            self._fxs[hash] = fx
 
-    def remove_fx(self, fx: FX):
-        if fx in self._fxs:
-            self._fxs.remove(fx)
+    def remove_fx(self, *, fx: FX = None, hash=None):
+        if hash is not None:
+            self._fxs.pop(hash)
+        else:
+            to_remove = []
+            for k, v in self._fxs.items():
+                if v == fx:
+                    to_remove.append(k)
+            for elem in to_remove:
+                self._fxs.pop(elem)
+            raise AssertionError
 
     def _draw_fx(self):
         """ Draw fx that are on-going """
-        fps = self._time_engine.fps
-        for fx in self._fxs:
-            fx.draw(self._current_time, fps)
+        for fx in self._fxs.values():
+            fx.draw()
 
     def add_grade_fx(self, key: Key, grade):
         """ Draw fx showing grade of the beat pressed at `key`' """
@@ -561,8 +591,6 @@ class GraphicsEngine:
 
     def add_hit_object_animation(self, key: Key, hit_object: HitObject):
         """ Draw incoming hit_object """
-        dt = 1
-
         def f(*args, **kwargs):
             center_x, center_y, width, height, rgba, tilt_angle = args
 
@@ -575,15 +603,11 @@ class GraphicsEngine:
                                          rgba,
                                          tilt_angle=tilt_angle)
 
-        def g():
-            key.hit_object = None
-
         rgba_ = GraphicsEngine.COLOR.PINK
 
-        fx = FX(self, self._current_time, hit_object.reach_times[0], f, g,
+        fx = FX(self, self._time_engine, self._current_time, hit_object.reach_times[0], f, [key],
                 key.center_x, key.center_y, key.width, key.height, rgba_, key.tilt_angle)
-        self._register_fx(fx)
-        key.current_fx = fx
+        self._register_fx(fx, hit_object)
 
     def _draw_pointer(self):
         """ Draw custom pointer """
@@ -596,7 +620,7 @@ class GraphicsEngine:
     def _draw_combo(self):
         """ Draw current combo"""
         combo = self._score_engine.combo
-        output = f"score: {combo}"
+        output = f"combo: {combo}"
         arcade.draw_text(output, 20, self._game.window.height // 2 - 60, arcade.color.WHITE, 16)
 
     def _draw_score(self):
@@ -702,7 +726,7 @@ class Beatmap:
                 func_map = {}
                 for k, v in kwargs.items():
                     assert len(v) == 2
-                    v # type: Tuple[Callable[[str], Any], Union[Iterable[str], str]]
+                    # type: Tuple[Callable[[str], Any], Union[Iterable[str], str]]
                     if v[1] == 'all':
                         func_map['all'] = v[0], k
                     else:
@@ -747,13 +771,15 @@ class Beatmap:
             while l != '//Break Periods\n':
                 l = f.readline()
                 for elem in l.split('"'):
-                    try:
-                        {'.jpg': self._background_filename,
-                         '.png': self._background_filename,
-                         '.mp4': self._video_filename,
-                         '.avi': self._video_filename,
-                         }[elem] = l
-                    except KeyError:
+                    if elem.endswith('.jpg'):
+                        self._background_filename = elem
+                    elif elem.endswith('.png'):
+                        self._background_filename = elem
+                    elif elem.endswith('.mp4'):
+                        self._video_filename = elem
+                    elif elem.endswith('.avi'):
+                        self._video_filename = elem
+                    else:
                         warnings.warn(f"reading .osu file... unknown file format: '{elem}'", ResourceWarning)
 
             # TODO get average BPM instead
@@ -787,6 +813,12 @@ class Beatmap:
     def audio_filename(self) -> str:
         """ Return name of the song file """
         return self._audio_filepath.name
+
+    @property
+    def background_filename(self) -> str:
+        """ Return name of the song file """
+        assert self._background_filename is not None
+        return self._background_filename
 
     def get_samples_filenames(self) -> List[str]:
         """ Return name of the custom sample that exists """
@@ -931,12 +963,12 @@ class HitObject:
         '_grades',
         '_beatmap',
         '_engine',
-        '_state',
+        '_state'
     )
 
     def __init__(self,
                  beatmap: Beatmap,
-                 engine: ScoreEngine,
+                 score_engine: ScoreEngine,
                  time: Union[Iterable[float], float],
                  symbol: Union[Iterable[int], int],
                  note_type: Type):
@@ -946,7 +978,7 @@ class HitObject:
         self._type = note_type
         self._calculate_animation_times(beatmap.BPM, beatmap.AR)
         self._beatmap = beatmap
-        self._engine = engine
+        self._engine = score_engine
         self._state = HitObject.STATE.INACTIVE
         self._grades = []
 
@@ -989,13 +1021,14 @@ class HitObject:
     def press(self, time: float):
         """ Mark `time` as a press_time if pressable.
         Raise TimeoutError if not pressable """
-        if self.state == HitObject.STATE.ACTIVE:
+        if self._state == HitObject.STATE.ACTIVE:
             self._press_times.append(time)
-            self._engine.register_hit(self, time, self._type)
+            if len(self._press_times) == HitObject.TYPE_MAXLEN_MAP[self._type]:
+                self._state = HitObject.STATE.PASSED
+        elif self._state == HitObject.STATE.INACTIVE:
+            pass
         else:
             raise TimeoutError('object is not pressable')
-        if len(self._press_times) == HitObject.TYPE_MAXLEN_MAP[self._type]:
-            self._state = HitObject.STATE.PASSED
 
     @property
     def reach_times(self) -> List[float]:
@@ -1063,14 +1096,21 @@ class HitObject:
         else:
             print(f'Over maxlen, did not process {grade}')
 
+
     @property
     def state(self) -> HitObject.State:
         """ Return current state of object """
         return self._state
 
-    @state.setter
-    def state(self, state: HitObject.State):
-        self._state = state
+    def change_state(self, state: Union[str, HitObject.State]):
+        if isinstance(state, str):
+            self._state = {
+                'active': HitObject.STATE.ACTIVE,
+                'inactive': HitObject.STATE.INACTIVE,
+                'passed': HitObject.STATE.PASSED
+            }[state]
+        else:
+            self._state = state
 
     def _dt(self) -> List[float]:
         """ Return the time difference (seconds) between reach_time and
@@ -1087,29 +1127,87 @@ class KeyboardModel:
         pass
 
 
-class Manager:
+class HitObjectManager:
     """ Manages sending hit_objects to keys and GraphicEngine"""
-    def __init__(self, time_engine: TimeEngine, graphics_engine: GraphicsEngine, keyboard: Keyboard, hit_objects: List[HitObject]):
+    def __init__(self, hit_objects: List[HitObject], time_engine: TimeEngine, graphics_engine: GraphicsEngine, audio_engine: AudioEngine, score_engine: ScoreEngine, keyboard: Keyboard):
         self._time_engine = time_engine
         self._graphics_engine = graphics_engine
+        self._audio_engine = audio_engine
+        self._score_engine = score_engine
         self._keys = keyboard.keys
         self._incoming = self._hit_objects = hit_objects
-        self._sent = []
+        self._sent = []  # type: List[HitObject]
+        self._passed = []  # type: List[HitObject]
 
     def update(self):
         time = self._time_engine.game_time
-        sent = []
+        send = []
         for hit_object in self._incoming:
             if time >= hit_object.animation_times[0]:
                 key = self._keys[hit_object.symbol]
                 key.hit_object = hit_object
                 self._graphics_engine.add_hit_object_animation(key, hit_object)
-                hit_object.state = HitObject.STATE.ACTIVE
-                sent.append(hit_object)
-        if sent:
-            for elem in sent:
+                hit_object.change_state('active')
+                send.append(hit_object)
+        for hit_object in self._sent:
+            if time > hit_object.reach_times[-1]:
+                if hit_object.state != HitObject.STATE.PASSED:
+                    self._change_stack_and_remove_fx(hit_object)
+                    self._score_engine.register_hit(hit_object, -1, hit_object.type)
+                    key = self._keys[hit_object.symbol]
+                    key.remove_hit_object()
+                    hit_object.change_state('passed')
+        if send:
+            for elem in send:
                 self._incoming.remove(elem)
-            self._sent.extend(sent)
+            self._sent.extend(send)
+
+    def on_key_press(self, symbol: int, modifiers: int):
+        try:
+            key = self._keys[symbol]
+        except KeyError:
+            key = None
+        hit_object = None  # type: Optional[HitObject]
+        if key:
+            key.press()
+            self._audio_engine.
+            try:
+                hit_object = key.hit_object
+            except AttributeError:
+                print('no object')
+        if hit_object:
+            try:
+                time = self._time_engine.game_time
+                hit_object.press(time)
+                self._score_engine.register_hit(hit_object, time, hit_object.type)
+                if hit_object.state == HitObject.STATE.PASSED:
+                    key.remove_hit_object()
+                    self._graphics_engine.remove_fx(hash=hit_object)
+            except TimeoutError:
+                self._change_stack_and_remove_fx(hit_object)
+                key.remove_hit_object()
+                self._graphics_engine.remove_fx(hash=hit_object)
+
+    def on_key_release(self, symbol: int, modifiers: int):
+        try:
+            key = self._keys[symbol]
+        except KeyError:
+            key = None
+        if key:
+            try:
+                key.hit_object.press(self._time_engine.game_time)
+            except TimeoutError:
+                self._change_stack_and_remove_fx(key.hit_object)
+                key.remove_hit_object()
+            except AttributeError:
+                pass
+
+    def _change_stack_and_remove_fx(self, hit_object: HitObject):
+        for elem in self._sent.copy():
+            if elem == hit_object:
+                self._sent.remove(hit_object)
+                self._passed.append(hit_object)
+                self._graphics_engine.remove_fx(hash=hit_object)
 
 
 class Game:
@@ -1119,14 +1217,7 @@ class Game:
     def __init__(self, width, height, song: str, difficulty: str):
         filepath = self.get_beatmap_filepath(song, difficulty)
         if filepath is None:
-            print('loading song... failed to get filepath')
-            a = input('specify filepath? (Y/N)')
-            while a not in 'YNyn':
-                a = input('specify filepath? (Y/N)')
-            if a in 'Yy':
-                filepath = a
-            else:
-                quit()
+            raise AssertionError
         self._beatmap = Beatmap(filepath)
         self._score_engine = ScoreEngine(beatmap=self._beatmap)
         self._time_engine = TimeEngine()
@@ -1137,7 +1228,7 @@ class Game:
         self._keyboard.set_graphics_engine(self._graphics_engine)
 
         self._hit_objects = self._beatmap.generate_hit_objects(score_engine=self._score_engine)
-        self._manager = Manager(time_engine=self._time_engine, graphics_engine=self._graphics_engine, keyboard=self._keyboard, hit_objects=self._hit_objects)
+        self._manager = HitObjectManager(hit_objects=self._hit_objects, time_engine=self._time_engine, graphics_engine=self._graphics_engine, audio_engine=self._audio_engine, score_engine=self._score_engine, keyboard=self._keyboard)
         self._state = Game.STATE.GAME_PAUSED
         self._update_rate = 1/60
 
@@ -1178,18 +1269,7 @@ class Game:
             # TODO: Find a good way to exit
             pyglet.app.exit()
 
-        try:
-            key = self._keyboard.keys[symbol]
-        except KeyError:
-            key = None
-        if key:
-            key.press()
-            hit_object = key.hit_object
-            if hit_object:
-                try:
-                    hit_object.press(self._time_engine.game_time)
-                except TimeoutError:
-                    key.current_fx.__del__()
+        self._manager.on_key_press(symbol, modifiers)
 
     def on_key_release(self, symbol: int, modifiers: int):
         try:
@@ -1239,7 +1319,9 @@ class Game:
         songs = Path('resources/Songs').rglob(f'*{song}*')
         try:
             for song in songs:
-                if difficulty in song.name:
+                if difficulty == '*' and song.suffix == '.osu':
+                    return song
+                if difficulty in song.name and song.suffix == '.osu':
                     return song
         except StopIteration:
             return
@@ -1251,12 +1333,11 @@ class GameWindow(arcade.Window):
         """ Create game window """
 
         super().__init__(1920, 1080, "musicality",
-                         fullscreen=False, resizable=False, update_rate=1/60)
+                         fullscreen=False, resizable=True, update_rate=1/60)
 
         arcade.set_background_color(arcade.color.BLACK)
-        self.game = Game(1920, 1080, 'Sayonara no Yukue', 'Insane')
+        self.game = Game(1920, 1080, 'MONSTER', 'NORMAL')
         self.game.set_window(self)
-
 
     def update(self, delta_time: float):
         self.game.update(delta_time)

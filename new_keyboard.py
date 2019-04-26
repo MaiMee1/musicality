@@ -147,8 +147,6 @@ class Key(Rectangle):
         self._hit_object = None  # type: HitObject
         self._engine = None  # type: GraphicsEngine
 
-        self.current_fx = None  # type: "FX"
-
     def __str__(self):
         return f"key constant: {self.symbol} size: {self.size} posn: {self._position}"
 
@@ -162,8 +160,13 @@ class Key(Rectangle):
         if self._hit_object:
             return self._hit_object
 
+    def remove_hit_object(self):
+        self._hit_object = None
+
     @hit_object.setter
     def hit_object(self, hit_object: "HitObject"):
+        if hit_object == None:
+            raise AssertionError('Use remove_hit_object() instead')
         self._hit_object = hit_object
 
     def set_graphics_engine(self, engine: "GraphicsEngine"):
