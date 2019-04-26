@@ -3,13 +3,14 @@ Due to limitations of the library (I think), the FN key does not work.
 RSHIFT also registers as LSHIFT in many computer's keyboard.
 
 """
-from typing import Dict, List
+from __future__ import annotations
+
+from typing import Dict, List, Optional
 
 import arcade
 from arcade.arcade_types import Color, RGBA
 
 import key
-from song import HitObject
 
 SCALING_CONSTANT = 1
 SEP = 0.075
@@ -24,15 +25,15 @@ def set_scaling(new_value):
 
 
 class Rectangle:
+
+    # __slots__ = 'width', 'height', '_position', 'border_width', 'tilt_angle', 'filled', 'color', 'alpha', 'shape', 'change_resolved'
+
     def __init__(self, center_x: float, center_y: float, width: float, height: float,
                  color: Color = arcade.color.BLACK, alpha: int = 255, **kwargs):
-
         self.width = width
         self.height = height
         self._position = [center_x, center_y]
 
-        # self.color = kwargs.pop('color', arcade.color.BLACK)  # type: Color
-        # self.alpha = kwargs.pop('alpha', 255)  # type: int
         self.border_width = kwargs.pop('border_width', 1)  # type: float
         self.tilt_angle = kwargs.pop('tilt_angle', 0)  # type: float
         self.filled = kwargs.pop('filled', True)  # type: float
@@ -40,17 +41,8 @@ class Rectangle:
         self.color = color
         self.alpha = alpha
 
-        # self.border_width = border_width
-        # self.tilt_angle = tilt_angle
-        # self.filled = filled
-
-        self.shape = arcade.create_rectangle(
-            self.center_x, self.center_y, self.width, self.height, self.rgba,
-            border_width=self.border_width, tilt_angle=self.tilt_angle, filled=self.filled)
-        self.redraw()
-
-        # FIXME must set update rate over here as well
-        self._update_rate = 1/60.5
+        self.shape = None
+        self.change_resolved = False
 
     def __str__(self):
         return f"size: {self.size} posn: {self._position}"
@@ -133,33 +125,9 @@ class Rectangle:
     def size(self) -> (float, float):
         return self.width, self.height
 
-    def update(self):
-        """ Advance by one frame """
-        pass
-
-    def draw(self):
-        """ Draw VBO """
-        arcade.draw_rectangle_filled(self.center_x, self.center_y, self.width, self.height, self.rgba, self.tilt_angle)
-
-    def draw_from_VBO(self):
-        self.shape.draw()
-
-    def redraw(self):
-        """ Recreate VBO """
-        self.shape = arcade.create_rectangle(
-            self.center_x, self.center_y, self.width, self.height, self.rgba,
-            border_width=self.border_width, tilt_angle=self.tilt_angle, filled=self.filled)
-
-    @property
-    def update_rate(self):
-        return self._update_rate
-
-    @update_rate.setter
-    def update_rate(self, rate: float):
-        self._update_rate = rate
-
 
 class Key(Rectangle):
+    """ Represents a key on the virtual keyboard """
 
     COLOR_INACTIVE = arcade.color.BLACK, 150
     COLOR_PRESSED = arcade.color.WHITE, 255
@@ -167,31 +135,66 @@ class Key(Rectangle):
     STATE_INACTIVE = 0
     STATE_ACTIVE = 1
 
-    def __init__(self, center_x: float, center_y: float, width: float,
-                 height: float, symbol: int, **kwargs):
+    def __init__(self, symbol: int, center_x: float, center_y: float, width: float,
+                 height: float, **kwargs):
+        """ """
+        super().__init__(center_x, center_y, width, height, **kwargs)
+        self._symbol = symbol
 
-        self.symbol = symbol
-        self._stack = []  # type: List[arcade.Shape]
-        self.to_draw = []  # type: List[arcade.Shape]
-        self.state = [Key.STATE_INACTIVE]
+        self._state = Key.STATE_INACTIVE
         self.pressable = kwargs.pop('pressable', True)
 
-        super().__init__(center_x, center_y, width, height, **kwargs)
-        # self.color, self.alpha = Key.COLOR_INACTIVE
-        # self.redraw()
+        self._hit_object = None  # type: HitObject
+        self._engine = None  # type: GraphicsEngine
+
+        self.current_fx = None  # type: "FX"
 
     def __str__(self):
         return f"key constant: {self.symbol} size: {self.size} posn: {self._position}"
 
-    def on_key_press(self, symbol: int, modifiers: int):
-        assert symbol == self.symbol
-        if self.pressable:
-            self.color, self.alpha = Key.COLOR_PRESSED
+    @property
+    def symbol(self):
+        return self._symbol
 
-    def on_key_release(self, symbol: int, modifiers: int):
-        assert symbol == self.symbol
-        if self.pressable:
-            self.color, self.alpha = Key.COLOR_INACTIVE
+    @property
+    def hit_object(self) -> "HitObject":
+        """ """
+        if self._hit_object:
+            return self._hit_object
+
+    @hit_object.setter
+    def hit_object(self, hit_object: "HitObject"):
+        self._hit_object = hit_object
+
+    def set_graphics_engine(self, engine: "GraphicsEngine"):
+        self._engine = engine
+
+    # require graphics_engine already set
+
+    # def draw(self):
+    #     """ Draw the element """
+    #     pass
+
+    def press(self):
+        self.pressed = True
+
+        self.color, self.alpha = Key.COLOR_PRESSED
+        self.change_resolved = False
+
+        self._engine.add_key_press_fx(self)
+
+    def release(self):
+        self.pressed = False
+
+        self.color, self.alpha = Key.COLOR_INACTIVE
+        self.change_resolved = False
+
+        self._engine.add_key_release_fx(self)
+
+    @property
+    def state(self):
+        """ Return the current state of the key """
+        return self._state
 
 
 def _align_center_x(shapes: List[Rectangle], index: int = 0, most=False) -> float:
@@ -289,9 +292,9 @@ def _create_keys(symbols: List[int], width: float, height: float,
         if key_name in kwargs:
             size = kwargs[key_name]
             assert isinstance(size, tuple)
-            out.append(Key(*posn, size[0]*scaling, size[1] * scaling, symbol, **kwargs))
+            out.append(Key(symbol, *posn, size[0]*scaling, size[1] * scaling, **kwargs))
         else:
-            out.append(Key(*posn, width*scaling, height * scaling, symbol, **kwargs))
+            out.append(Key(symbol, *posn, width*scaling, height * scaling, **kwargs))
     return out
 
 
@@ -327,7 +330,7 @@ def _create_small_notebook_keys(verbose=False, **kwargs) -> Dict[int, Key]:
     out2 = temp  # type: List
 
     scaled_size = size_arrow_keys[0] * SCALING, size_arrow_keys[1] * SCALING
-    temp = Key(temp[1].center_x, 0, *scaled_size, key.UP, color=color, alpha=alpha)
+    temp = Key(key.UP, temp[1].center_x, 0, *scaled_size, color=color, alpha=alpha)
     temp.bottom = out2[1].top + SEP*SCALING
     out2.append(temp)
 
@@ -384,9 +387,10 @@ def _create_mechanical_keys() -> Dict[int, Key]:
 
 
 class Keyboard(Rectangle):
-    def __init__(self, center_x, center_y, *, model: str, **kwargs):
-        model = model
-        assert model in ('small notebook', 'large notebook', 'mechanical')
+    """ Represents the board behind keys """
+
+    def __init__(self, center_x: int, center_y: int, *, model: str, **kwargs):
+        self.keys: Dict[int, Key]
 
         self.keys = {
             'small notebook': _create_small_notebook_keys,
@@ -394,58 +398,25 @@ class Keyboard(Rectangle):
             'mechanical': _create_mechanical_keys
         }[model]()
 
-        width, height, self.edge = {'small notebook': (18.05, 7.6, 0.4375),
-                                    'large notebook': (22.85, 7.6, 0.4375),
-                                    'mechanical': (23.4, 9.0, 0.6)}[model]
+        width, height, self._edge = {
+            'small notebook': (18.05, 7.6, 0.4375),
+            'large notebook': (22.85, 7.6, 0.4375),
+            'mechanical': (23.4, 9.0, 0.6)
+        }[model]
+
         super().__init__(center_x, center_y, width * SCALING, height * SCALING, **kwargs)
 
-        lower_left_z_key = self.left + self.edge*SCALING, self.bottom + self.edge*SCALING
+        lower_left_z_key = self.left + self._edge * SCALING, self.bottom + self._edge * SCALING
         for k in self.keys.values():
             k.move(*lower_left_z_key)
 
-    def update(self):
-        """ Advance self and its keys by one frame """
-        for k in self.keys.values():
-            k.update()
+        self._engine = None
 
-    def draw(self):
-        """ Draw self and its keys """
-        super().draw()
-        for k in self.keys.values():
-            k.draw()
+    def set_graphics_engine(self, engine: "GraphicsEngine"):
+        self._engine = engine
+        for key in self.keys.values():
+            key.set_graphics_engine(engine)
 
-    def redraw(self):
-        """ Recreate self's and optionally all keys' VBO """
-        super().redraw()
-        for k in self.keys.values():
-            k.redraw()
-
-    def on_key_press(self, symbol: int, modifiers: int):
-        try:
-            self.keys[symbol].on_key_press(symbol, modifiers)
-        except KeyError:
-            # do nothing if key does not exist on keyboard
-            pass
-        # for testing
-        if symbol == key.ESCAPE:
-            self.keys[key.F1].setup_stack(1, arcade.color.GREEN)
-        if symbol == key.F12:
-            for k in self.keys.values():
-                k.setup_stack(1, arcade.color.GREEN)
-
-    def on_key_release(self, symbol: int, modifiers: int):
-        try:
-            self.keys[symbol].on_key_release(symbol, modifiers)
-        except KeyError:
-            # do nothing if key does not exist on keyboard
-            pass
-
-    def set_update_rate(self, rate: float):
-        self.update_rate = rate
-        for k in self.keys.values():
-            k.update_rate = rate
-
-    def send(self, hit_object: HitObject):
-        k = self.keys[hit_object.symbol]
-        k.setup_stack(hit_object.reach_time - hit_object.start_time, arcade.color.PINK)
-        k.state = Key.STATE_ACTIVE
+    # def draw(self):
+    #     """ Draw the element """
+    #     pass

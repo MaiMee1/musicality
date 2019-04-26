@@ -9,6 +9,7 @@ import arcade
 import pyglet
 
 import key as key_
+from new_keyboard import Keyboard, Key, Rectangle
 import new_keyboard as keyboard_
 # TODO how to play
 
@@ -16,7 +17,7 @@ import new_keyboard as keyboard_
 class TimeEngine:
     """ Manages time """
 
-    __slots__ = 'time', '_frame_times', '_t', '_start_time', '_dt'
+    __slots__ = 'time', '_frame_times', '_t', '_start_time', '_dt', '_start'
 
     def __init__(self, maxlen: int = 60):
         import time
@@ -27,6 +28,7 @@ class TimeEngine:
         self._t = self._start_time = self.time()
         self._dt = 0
         self.tick()
+        self._start = False
 
     def tick(self):
         """ Call to signify one frame passing """
@@ -34,6 +36,11 @@ class TimeEngine:
         self._dt = dt = t - self._t
         self._t = t
         self._frame_times.append(dt)
+
+    def start(self):
+        """ Start the clock """
+        self._start = True
+        self._start_time = self.time()
 
     def reset(self):
         """ Restart the clock """
@@ -50,7 +57,11 @@ class TimeEngine:
     @property
     def game_time(self) -> float:
         """ Return current time at function call in seconds """
-        return self.time() - self._start_time
+        try:
+            assert self._start == True
+            return self.time() - self._start_time
+        except AssertionError:
+            return 0
 
     @property
     def dt(self) -> float:
@@ -422,10 +433,41 @@ class ScoreEngine:
         return self._accuracy_stack
 
 
+class FX:
+    """ Represents a graphical fx """
+    def __init__(self, graphics_engine: GraphicsEngine, start_time: float, finish_time: float, draw_function: callable, on_del: callable, *args):
+        """ :param args: draw function argument """
+        self._engine = graphics_engine
+        self._start_time = start_time
+        self._finish_time = finish_time
+        self._draw = draw_function
+        self.args = args
+        self._on_del = on_del
+
+    def draw(self, current_time: float, fps: float):
+        elapsed = current_time - self._start_time
+        total = self._finish_time - self._start_time
+        self._draw(*self.args, fps=fps, elapsed=elapsed, total=total)
+
+    @property
+    def start_time(self):
+        return self._start_time
+
+    @property
+    def finish_time(self):
+        return self._finish_time
+
+    def __del__(self):
+        self._engine.remove_fx(self)
+        self._on_del()
+
+
 class GraphicsEngine:
     """ Manages graphical effects and background/video """
 
-    __slots__ = '_beatmap', '_time_engine', '_score_engine', '_keyboard', '_game'
+    import arcade.color as COLOR
+
+    __slots__ = '_beatmap', '_time_engine', '_score_engine', '_keyboard', '_game', '_fxs', '_current_time'
 
     def __init__(self, game: Game, beatmap: Beatmap, time_engine: TimeEngine, score_engine: ScoreEngine, keyboard: Keyboard):
         self._game = game  # for update_rate and window only
@@ -434,16 +476,30 @@ class GraphicsEngine:
         self._score_engine = score_engine
         self._keyboard = keyboard
 
+        self._fxs = []  # type: List[FX]
+
+        self._current_time = 0
+
     def update(self):
         """ Update graphics to match current data """
-        pass
+        self._current_time = self._time_engine.game_time
+        for fx in self._fxs.copy():
+            if fx.finish_time < self._current_time:
+                self._fxs.remove(fx)
+                del fx
+
+    def force_update(self):
+        self._keyboard.change_resolved = False
+        for key in self._keyboard.keys.values():
+            key.change_resolved = False
 
     def on_draw(self):
         """ Draws everything on the screen """
         arcade.start_render()
+
         self._draw_keyboard()
 
-        self._draw_current_fx()
+        self._draw_fx()
 
         self._draw_clock()
         self._draw_combo()
@@ -452,17 +508,82 @@ class GraphicsEngine:
         self._draw_overall_grade()
         self._draw_accuracy_bar()
 
+        self._draw_game_time()
         self._draw_fps()
 
         self._draw_pointer()
 
     def _draw_keyboard(self):
         """ Draw keyboard """
-        self._keyboard.draw()
+        keyboard = self._keyboard
 
-    def _draw_current_fx(self):
+        if not keyboard.change_resolved:
+            keyboard.shape = arcade.create_rectangle(
+                keyboard.center_x, keyboard.center_y, keyboard.width, keyboard.height, keyboard.rgba,
+                border_width=keyboard.border_width, tilt_angle=keyboard.tilt_angle, filled=keyboard.filled)
+            keyboard.change_resolved = True
+
+        for key in self._keyboard.keys.values():
+            if not key.change_resolved:
+                key.shape = arcade.create_rectangle(
+                    key.center_x, key.center_y, key.width, key.height, key.rgba,
+                    border_width=key.border_width, tilt_angle=key.tilt_angle, filled=key.filled)
+                key.change_resolved = True
+
+        for shape in [keyboard.shape] + [key.shape for key in keyboard.keys.values()]:
+            shape.draw()
+
+    def _register_fx(self, fx: FX):
+        """ Add `fx` to to-draw stack """
+        self._fxs.append(fx)
+
+    def remove_fx(self, fx: FX):
+        if fx in self._fxs:
+            self._fxs.remove(fx)
+
+    def _draw_fx(self):
         """ Draw fx that are on-going """
+        fps = self._time_engine.fps
+        for fx in self._fxs:
+            fx.draw(self._current_time, fps)
+
+    def add_grade_fx(self, key: Key, grade):
+        """ Draw fx showing grade of the beat pressed at `key`' """
         pass
+
+    def add_key_press_fx(self, key: Key):
+        """ Draw fx showing key pressing at `key` """
+        pass
+
+    def add_key_release_fx(self, key: Key):
+        """ Draw fx showing key releasing at `key` """
+        pass
+
+    def add_hit_object_animation(self, key: Key, hit_object: HitObject):
+        """ Draw incoming hit_object """
+        dt = 1
+
+        def f(*args, **kwargs):
+            center_x, center_y, width, height, rgba, tilt_angle = args
+
+            elapsed = kwargs.pop('elapsed', None)
+            total = kwargs.pop('total', None)
+
+            arcade.draw_rectangle_filled(center_x, center_y,
+                                         width * elapsed / total,
+                                         height * elapsed / total,
+                                         rgba,
+                                         tilt_angle=tilt_angle)
+
+        def g():
+            key.hit_object = None
+
+        rgba_ = GraphicsEngine.COLOR.PINK
+
+        fx = FX(self, self._current_time, hit_object.reach_times[0], f, g,
+                key.center_x, key.center_y, key.width, key.height, rgba_, key.tilt_angle)
+        self._register_fx(fx)
+        key.current_fx = fx
 
     def _draw_pointer(self):
         """ Draw custom pointer """
@@ -474,11 +595,15 @@ class GraphicsEngine:
 
     def _draw_combo(self):
         """ Draw current combo"""
-        pass
+        combo = self._score_engine.combo
+        output = f"score: {combo}"
+        arcade.draw_text(output, 20, self._game.window.height // 2 - 60, arcade.color.WHITE, 16)
 
     def _draw_score(self):
         """ Draw total score"""
-        pass
+        score = self._score_engine.score
+        output = f"score: {score}"
+        arcade.draw_text(output, 20, self._game.window.height // 2 + 30, arcade.color.WHITE, 16)
 
     def _draw_total_accuracy(self):
         """ Draw total accuracy """
@@ -492,23 +617,17 @@ class GraphicsEngine:
         """ Draw accuracy bar """
         pass
 
-    def _draw_grade_fx(self, key: Key, grade):
-        """ Draw fx showing grade of the beat pressed at `key`' """
-        pass
-
-    def _draw_key_press_fx(self, key: Key):
-        """ Draw fx showing key pressing at `key` """
-        pass
-
-    def _draw_key_release_fx(self, key: Key):
-        """ Draw fx showing key releasing at `key` """
-        pass
-
     def _draw_fps(self):
         """ Show FPS on screen """
         fps = self._time_engine.fps
         output = f"FPS: {fps:.1f}"
         arcade.draw_text(output, 20, self._game.window.height // 2, arcade.color.WHITE, 16)
+
+    def _draw_game_time(self):
+        """  """
+        time = self._time_engine.game_time
+        output = f"time: {time:.1f}"
+        arcade.draw_text(output, 20, self._game.window.height // 2 - 30, arcade.color.WHITE, 16)
 
 
 def get_relative_path(path: Path, relative_root: Path = Path().resolve()):
@@ -823,6 +942,7 @@ class HitObject:
                  note_type: Type):
         """  """
         self._reach_times, self._symbol = self._filter_input(time, symbol, note_type)
+        self._press_times = []
         self._type = note_type
         self._calculate_animation_times(beatmap.BPM, beatmap.AR)
         self._beatmap = beatmap
@@ -845,7 +965,7 @@ class HitObject:
             try:
                 assert len(symbol) == 1, error_msg.format(1)
             except TypeError:
-                symbol = [symbol]
+                symbol = symbol
         elif note_type == HitObject.TYPE.HOLD:
             try:
                 assert len(time) == 2 and len(symbol) == 2, error_msg.format(2)
@@ -861,7 +981,7 @@ class HitObject:
         """ Set the _animation_times """
         assert BPM > 0
         assert 0 <= AR <= 10
-        AR = AR / 2
+        AR = AR / 3
         beat = 60 / BPM  # seconds
         delay = beat * (1 + (10 - AR) / 3)  # seconds
         self._animation_times = [reach_time - delay for reach_time in self._reach_times]  # seconds
@@ -877,21 +997,21 @@ class HitObject:
         if len(self._press_times) == HitObject.TYPE_MAXLEN_MAP[self._type]:
             self._state = HitObject.STATE.PASSED
 
-    # @property
-    # def reach_times(self) -> List[float]:
-    #     """ Return list of times in relation to game_time (seconds)
-    #     object needs to be interacted with by the player. """
-    #     pass
-    #
-    # @property
-    # def reach_times_ms(self) -> List[int]:
-    #     """ Return reach_time in milliseconds """
-    #     pass
+    @property
+    def reach_times(self) -> List[float]:
+        """ Return list of times in relation to game_time (seconds)
+        object needs to be interacted with by the player. """
+        return self._reach_times
+
+    @property
+    def reach_times_ms(self) -> List[int]:
+        """ Return reach_time in milliseconds """
+        return [int(time * 1000) for time in self._reach_times]
 
     @property
     def animation_times(self) -> List[float]:
         """ Return list of times in relation to game_time (seconds)
-        graphics engine need to do animations. """
+        graphics engine need to start animations. """
         return self._animation_times
 
     @property
@@ -948,6 +1068,10 @@ class HitObject:
         """ Return current state of object """
         return self._state
 
+    @state.setter
+    def state(self, state: HitObject.State):
+        self._state = state
+
     def _dt(self) -> List[float]:
         """ Return the time difference (seconds) between reach_time and
         press_time-- press_time - reach_time --of the instance.
@@ -957,86 +1081,35 @@ class HitObject:
         return [press - reach for press, reach in zip(self._press_times, self._reach_times)]
 
 
-class Key:
-    """ Represents a key on the virtual keyboard """
-    def __init__(self):
-        self._hit_object: HitObject = None
-
-    @property
-    def hit_object(self) -> Optional[HitObject]:
-        """ """
-        if self._hit_object:
-            return self._hit_object
-
-    def draw(self):
-        """ Draw the element """
-        pass
-
-    def press(self):
-        pass
-
-    def release(self):
-        pass
-
-    @property
-    def state(self):
-        """ Return the current state of the key """
-        pass
-
-
 class KeyboardModel:
     """ Data collection for different keyboard types """
     def __int__(self):
         pass
 
 
-class Keyboard:
-    """ Represents the board behind keys """
-    def __init__(self, center_x: int, center_y: int):
-        self.keys: Dict[int, Key]
-        keyboard_.set_scaling(5)
-        self.keyboard = keyboard_.Keyboard(center_x, center_y,
-                                           model='small notebook',
-                                           color=arcade.color.LIGHT_BLUE,
-                                           alpha=150)
-        self.keys = {k: Key() for k in self.keyboard.keys.keys()}
+class Manager:
+    """ Manages sending hit_objects to keys and GraphicEngine"""
+    def __init__(self, time_engine: TimeEngine, graphics_engine: GraphicsEngine, keyboard: Keyboard, hit_objects: List[HitObject]):
+        self._time_engine = time_engine
+        self._graphics_engine = graphics_engine
+        self._keys = keyboard.keys
+        self._incoming = self._hit_objects = hit_objects
+        self._sent = []
 
-    def draw(self):
-        """ Draw the element """
-        self.keyboard.draw()
-
-    def location(self) -> (int, int) :
-        """ Return the current location in pixels """
-        pass
-
-    def set_location(self, center_x: int, center_y: int):
-        """ Move the keyboard (and its keys) to new location """
-        pass
-
-    def on_key_press(self, symbol: int, modifiers: int, time: float):
-        self.keyboard.keys[symbol].on_key_press(symbol, modifiers)
-        try:
-            key = self.keys[symbol]
-        except KeyError:
-            key = None
-        if key:
-            key.press()
-            hit_object = key.hit_object
-            if hit_object:
-                hit_object.press(time)
-
-    def on_key_release(self, symbol: int, modifiers: int, time: float):
-        self.keyboard.keys[symbol].on_key_release(symbol, modifiers)
-        try:
-            key = self.keys[symbol]
-        except KeyError:
-            key = None
-        if key:
-            key.release()
-            hit_object = key.hit_object
-            if hit_object:
-                if hit_object.type == HitObject.TYPE.HOLD:
-                    hit_object.press(time)
+    def update(self):
+        time = self._time_engine.game_time
+        sent = []
+        for hit_object in self._incoming:
+            if time >= hit_object.animation_times[0]:
+                key = self._keys[hit_object.symbol]
+                key.hit_object = hit_object
+                self._graphics_engine.add_hit_object_animation(key, hit_object)
+                hit_object.state = HitObject.STATE.ACTIVE
+                sent.append(hit_object)
+        if sent:
+            for elem in sent:
+                self._incoming.remove(elem)
+            self._sent.extend(sent)
 
 
 class Game:
@@ -1054,24 +1127,18 @@ class Game:
                 filepath = a
             else:
                 quit()
-        print(1)
         self._beatmap = Beatmap(filepath)
-        print(2)
         self._score_engine = ScoreEngine(beatmap=self._beatmap)
-        print(3)
         self._time_engine = TimeEngine()
-        print(4)
         self._audio_engine = AudioEngine(beatmap=self._beatmap, time_engine=self._time_engine)
-        print(5)
-        self._keyboard = Keyboard(width//2, height//2)
-        print(6)
+        keyboard_.set_scaling(5)
+        self._keyboard = Keyboard(width//2, height//2, model='small notebook', color=arcade.color.LIGHT_BLUE, alpha=150)
         self._graphics_engine = GraphicsEngine(self, beatmap=self._beatmap, time_engine=self._time_engine, score_engine=self._score_engine, keyboard=self._keyboard)
-        print(7)
+        self._keyboard.set_graphics_engine(self._graphics_engine)
 
         self._hit_objects = self._beatmap.generate_hit_objects(score_engine=self._score_engine)
-        print(8)
+        self._manager = Manager(time_engine=self._time_engine, graphics_engine=self._graphics_engine, keyboard=self._keyboard, hit_objects=self._hit_objects)
         self._state = Game.STATE.GAME_PAUSED
-        print(9)
         self._update_rate = 1/60
 
     def set_window(self, window: arcade.Window):
@@ -1081,13 +1148,14 @@ class Game:
         """ Start the game """
         self._state = Game.STATE.GAME_PLAYING
         self._audio_engine.song.play()
-        self._time_engine.reset()
+        self._time_engine.start()
 
     def pause(self):
         """ Pause the game """
         pass
 
     def update(self, delta_time: float):
+        self._manager.update()
         self._graphics_engine.update()
 
     def on_update(self, delta_time: float):
@@ -1103,15 +1171,37 @@ class Game:
 
     def on_key_press(self, symbol: int, modifiers: int):
         if symbol == key_.P:
-            self.start()
+            if self.state != Game.STATE.GAME_PLAYING:
+                self.start()
         if symbol == 99 and modifiers & 1 and modifiers & 2:
             # CTRL + SHIFT + C to close, for fullscreen emergency
             # TODO: Find a good way to exit
             pyglet.app.exit()
-        self._keyboard.on_key_press(symbol, modifiers, self._time_engine.game_time)
+
+        try:
+            key = self._keyboard.keys[symbol]
+        except KeyError:
+            key = None
+        if key:
+            key.press()
+            hit_object = key.hit_object
+            if hit_object:
+                try:
+                    hit_object.press(self._time_engine.game_time)
+                except TimeoutError:
+                    key.current_fx.__del__()
 
     def on_key_release(self, symbol: int, modifiers: int):
-        self._keyboard.on_key_release(symbol, modifiers, self._time_engine.game_time)
+        try:
+            key = self._keyboard.keys[symbol]
+        except KeyError:
+            key = None
+        if key:
+            key.release()
+            hit_object = key.hit_object
+            if hit_object:
+                if hit_object.type == HitObject.TYPE.HOLD:
+                    hit_object.press(self._time_engine.game_time)
 
     def on_mouse_press(self, x: float, y: float, button: int, modifiers: int):
         pass
