@@ -10,9 +10,17 @@ import arcade
 import pyglet
 
 import key as key_
-from keyboard import Keyboard, Key, Rectangle
+from keyboard import Keyboard, Key
 import keyboard as keyboard_
 # TODO how to play
+
+_window = None
+
+_time_engine = None
+_audio_engine = None
+_graphics_engine = None
+
+_score_manager = None
 
 
 class TimeEngine:
@@ -30,10 +38,6 @@ class TimeEngine:
         self._dt = 0
         self.tick()
         self._start = False
-
-    def init_engine(self, game: Game):
-        """ Maneuvering circular dependency """
-        self._audio_engine = game._audio_engine
 
     def tick(self):
         """ Call to signify one frame passing """
@@ -65,7 +69,7 @@ class TimeEngine:
         try:
             assert self._start
             time = self.time()
-            audio_time = self._audio_engine.song.time
+            audio_time = _audio_engine.song.time
             diff = audio_time - time
             if diff:
                 time += diff / 2
@@ -341,7 +345,7 @@ class AudioEngine:
         return self._song
 
 
-class ScoreEngine:
+class ScoreManager:
     """ Manages calculation of score, combo, grade, etc. """
     def __init__(self, beatmap: Beatmap):
         from collections import deque
@@ -430,10 +434,8 @@ class ScoreEngine:
 
 class FX:
     """ Represents a graphical fx """
-    def __init__(self, graphics_engine: GraphicsEngine, time_engine: TimeEngine, start_time: float, finish_time: float, draw_function: callable, object_with_references: Iterable, *args):
+    def __init__(self, start_time: float, finish_time: float, draw_function: callable, object_with_references: Iterable, *args):
         """ :param args: draw function's arguments """
-        self._graphics_engine = graphics_engine
-        self._time_engine = time_engine
         self._start_time = start_time
         self._finish_time = finish_time
         self._draw = draw_function
@@ -441,9 +443,9 @@ class FX:
         self._object_with_references = object_with_references
 
     def draw(self):
-        elapsed = self._time_engine.game_time - self._start_time
+        elapsed = _time_engine.game_time - self._start_time
         total = self._finish_time - self._start_time
-        self._draw(*self.args, fps=self._time_engine.fps, elapsed=elapsed, total=total)
+        self._draw(*self.args, fps=_time_engine.fps, elapsed=elapsed, total=total)
 
     @property
     def start_time(self):
@@ -455,7 +457,7 @@ class FX:
 
     def kill(self):
         # FIXME
-        self._graphics_engine.remove_fx(fx=self)
+        _graphics_engine.remove_fx(fx=self)
         for elem in self._object_with_references:
             try:
                 elem.remove_fx(self)
@@ -468,9 +470,11 @@ class GraphicsEngine:
 
     import arcade.color as COLOR
 
-    __slots__ = '_beatmap', '_time_engine', '_score_engine', '_keyboard', '_game', '_fxs', '_current_time', '_bg'
+    __slots__ = '_beatmap', '_time_engine', '_score_manager', '_keyboard', '_game', '_fxs', '_current_time', '_bg'
 
-    def __init__(self, beatmap: Beatmap, keyboard: Keyboard):
+    def __init__(self, game: Game, beatmap: Beatmap, keyboard: Keyboard):
+        self._game = game
+
         self._beatmap = beatmap
         self._keyboard = keyboard
 
@@ -481,14 +485,9 @@ class GraphicsEngine:
         path = self._beatmap.get_folder_path() / self._beatmap.background_filename
         self._bg = arcade.load_texture(file_name=path.as_posix())
 
-    def init_engine(self, game: Game):
-        """ Maneuvering circular dependency """
-        self._game = game  # for update_rate and window only
-        self._time_engine, self._score_engine = game._time_engine, game._score_engine
-
     def update(self):
         """ Update graphics to match current data """
-        self._current_time = self._time_engine.game_time
+        self._current_time = _time_engine.game_time
         for fxs in self._fxs.values():
             if fxs[0].finish_time < self._current_time:
                 discard = fxs.pop(0)
@@ -561,7 +560,7 @@ class GraphicsEngine:
                         label = pyglet.text.Label(
                             text, 'Montserrat', key.height//2, color=(255, 255, 255, 255),
                             x=key.position[0], y=key.position[1], anchor_x='center', anchor_y='center',
-                            multiline=False)
+                            multiline=multiline)
                         key.graphic = label
                         key.graphic.draw()
                     except KeyError:
@@ -650,9 +649,9 @@ class GraphicsEngine:
 
         rgba_ = GraphicsEngine.COLOR.PINK
 
-        fx = FX(self, self._time_engine, self._current_time, hit_object.reach_times[0], f, [key],
+        fx = FX(self._current_time, hit_object.reach_times[0], f, [key],
                 key.center_x, key.center_y, key.width, key.height, rgba_, key.tilt_angle)
-        end_fx = FX(self, self._time_engine, hit_object.reach_times[0], hit_object.reach_times[0] + 0.3, g, [key],
+        end_fx = FX(hit_object.reach_times[0], hit_object.reach_times[0] + 0.3, g, [key],
                 key.center_x, key.center_y, key.width, key.height, rgba_, key.tilt_angle)
         return fx, end_fx
 
@@ -666,13 +665,13 @@ class GraphicsEngine:
 
     def _draw_combo(self):
         """ Draw current combo"""
-        combo = self._score_engine.combo
+        combo = _score_manager.combo
         output = f"combo: {combo}"
         arcade.draw_text(output, 20, self._game.window.height // 2 - 60, arcade.color.WHITE, 16)
 
     def _draw_score(self):
         """ Draw total score"""
-        score = self._score_engine.score
+        score = _score_manager.score
         output = f"score: {score}"
         arcade.draw_text(output, 20, self._game.window.height // 2 + 30, arcade.color.WHITE, 16)
 
@@ -690,13 +689,13 @@ class GraphicsEngine:
 
     def _draw_fps(self):
         """ Show FPS on screen """
-        fps = self._time_engine.fps
+        fps = _time_engine.fps
         output = f"FPS: {fps:.1f}"
         arcade.draw_text(output, 20, self._game.window.height // 2, arcade.color.WHITE, 16)
 
     def _draw_game_time(self):
         """  """
-        time = self._time_engine.game_time
+        time = _time_engine.game_time
         output = f"time: {time:.3f}"
         arcade.draw_text(output, 20, self._game.window.height // 2 - 30, arcade.color.WHITE, 16)
 
@@ -899,13 +898,13 @@ class Beatmap:
         , and set time. """
         pass
 
-    def generate_hit_objects(self, score_engine: ScoreEngine) -> List[HitObject]:
+    def generate_hit_objects(self, score_engine: ScoreManager) -> List[HitObject]:
         """ Generate and return a list of processed hit_objects """
         from random import choice, seed
         import key
         seed(round(sum(self._hit_times), 3))
         hit_objects = [
-            HitObject(self, score_engine, hit_time, choice(key.normal_keys), HitObject.TYPE.TAP)
+            HitObject(self, hit_time, choice(key.normal_keys), HitObject.TYPE.TAP)
             for hit_time in self._hit_times
         ]
         return hit_objects
@@ -960,13 +959,12 @@ class HitObject:
         '_press_times',
         '_grades',
         '_beatmap',
-        '_engine',
+        '_manager',
         '_state'
     )
 
     def __init__(self,
                  beatmap: Beatmap,
-                 score_engine: ScoreEngine,
                  time: Union[Iterable[float], float],
                  symbol: Union[Iterable[int], int],
                  note_type: Type):
@@ -976,7 +974,6 @@ class HitObject:
         self._type = note_type
         self._calculate_animation_times(beatmap.BPM, beatmap.AR)
         self._beatmap = beatmap
-        self._engine = score_engine
         self._state = HitObject.STATE.INACTIVE
         self._grades = []
 
@@ -1133,28 +1130,21 @@ class HitObjectManager:
         self._sent = []  # type: List[HitObject]
         self._passed = []  # type: List[HitObject]
 
-    def init_engine(self, game: Game):
-        """  """
-        self._time_engine = game._time_engine
-        self._graphics_engine = game._graphics_engine
-        self._audio_engine = game._audio_engine
-        self._score_engine = game._score_engine
-
     def update(self):
-        time = self._time_engine.game_time
+        time = _time_engine.game_time
         send = []
         for hit_object in self._incoming:
             if time >= hit_object.animation_times[0]:
                 key = self._keys[hit_object.symbol]
                 key.hit_object = hit_object
-                self._graphics_engine.add_hit_object_animation(key, hit_object)
+                _graphics_engine.add_hit_object_animation(key, hit_object)
                 hit_object.change_state('active')
                 send.append(hit_object)
         for hit_object in self._sent:
             if time > hit_object.reach_times[-1] + 0.3:
                 if hit_object.state != HitObject.STATE.PASSED:
                     self._change_stack_and_remove_fx(hit_object)
-                    self._score_engine.register_hit(hit_object, -1, hit_object.type)
+                    _score_manager.register_hit(hit_object, -1, hit_object.type)
                     key = self._keys[hit_object.symbol]
                     key.remove_hit_object()
                     hit_object.change_state('passed')
@@ -1176,18 +1166,18 @@ class HitObjectManager:
             except AttributeError:
                 print('no object')
         if hit_object:
-            self._audio_engine.play_sound(*hit_object.hit_sound)
+            _audio_engine.play_sound(*hit_object.hit_sound)
             try:
-                time = self._time_engine.game_time
+                time = _time_engine.game_time
                 hit_object.press(time)
-                self._score_engine.register_hit(hit_object, time, hit_object.type)
+                _score_manager.register_hit(hit_object, time, hit_object.type)
                 if hit_object.state == HitObject.STATE.PASSED:
                     key.remove_hit_object()
-                    self._graphics_engine.remove_fx(hash=hit_object)
+                    _graphics_engine.remove_fx(hash=hit_object)
             except TimeoutError:
                 self._change_stack_and_remove_fx(hit_object)
                 key.remove_hit_object()
-                self._graphics_engine.remove_fx(hash=hit_object)
+                _graphics_engine.remove_fx(hash=hit_object)
 
     def on_key_release(self, symbol: int, modifiers: int):
         try:
@@ -1196,7 +1186,7 @@ class HitObjectManager:
             key = None
         if key:
             try:
-                key.hit_object.press(self._time_engine.game_time)
+                key.hit_object.press(_time_engine.game_time)
             except TimeoutError:
                 self._change_stack_and_remove_fx(key.hit_object)
                 key.remove_hit_object()
@@ -1208,7 +1198,7 @@ class HitObjectManager:
             if elem == hit_object:
                 self._sent.remove(hit_object)
                 self._passed.append(hit_object)
-                self._graphics_engine.remove_fx(hash=hit_object)
+                _graphics_engine.remove_fx(hash=hit_object)
 
 
 class Game:
@@ -1216,25 +1206,24 @@ class Game:
     from constants import GameState as State, GAME_STATE as STATE
 
     def __init__(self, width, height, song: str, difficulty: str):
+        global _score_manager, _time_engine, _audio_engine, _graphics_engine
+
         filepath = self.get_beatmap_filepath(song, difficulty)
         if filepath is None:
             raise AssertionError
         self._beatmap = Beatmap(filepath)
-        self._score_engine = ScoreEngine(beatmap=self._beatmap)
-        self._time_engine = TimeEngine()
-        self._audio_engine = AudioEngine(beatmap=self._beatmap)
+        _score_manager = self._score_manager = ScoreManager(beatmap=self._beatmap)
+        _time_engine = self._time_engine = TimeEngine()
+        _audio_engine = self._audio_engine = AudioEngine(beatmap=self._beatmap)
         keyboard_.set_scaling(5)
         self._keyboard = Keyboard(width//2, height//2, model='small notebook', color=arcade.color.LIGHT_BLUE, alpha=150)
-        self._graphics_engine = GraphicsEngine(beatmap=self._beatmap, keyboard=self._keyboard)
+        _graphics_engine = self._graphics_engine = GraphicsEngine(self, beatmap=self._beatmap, keyboard=self._keyboard)
         self._keyboard.set_graphics_engine(self._graphics_engine)
 
-        self._hit_objects = self._beatmap.generate_hit_objects(score_engine=self._score_engine)
+        self._hit_objects = self._beatmap.generate_hit_objects(score_engine=self._score_manager)
         self._manager = HitObjectManager(hit_objects=self._hit_objects, keyboard=self._keyboard)
         self._state = Game.STATE.GAME_PAUSED
         self._update_rate = 1/60
-
-        for engine in (self._audio_engine, self._score_engine, self._time_engine, self._graphics_engine, self._manager):
-            engine.init_engine(self)
 
     def set_window(self, window: arcade.Window):
         self.window = window
