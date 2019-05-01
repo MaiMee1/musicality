@@ -26,7 +26,7 @@ _score_manager = None
 class TimeEngine:
     """ Manages time """
 
-    __slots__ = 'time', '_frame_times', '_t', '_start_time', '_dt', '_start', '_audio_engine'
+    __slots__ = 'time', '_frame_times', '_t', '_start_time', '_dt', '_start'
 
     def __init__(self, maxlen: int = 60):
         import time
@@ -152,7 +152,7 @@ class Time:
 class Audio:
     """ Represents audio file """
 
-    __slots__ = '_source', '_player', '_filename', '_engine', '_constructor'
+    __slots__ = '_source', '_player', '_filename', '_constructor'
 
     def __init__(self, *,
                  filepath: Path = None, absolute: bool = False,
@@ -189,8 +189,6 @@ class Audio:
         self._player = pyglet.media.Player()
         self._player.queue(self._source)
 
-        self._engine: AudioEngine
-
     @property
     def name(self):
         """ Return the filename of the audio """
@@ -205,10 +203,6 @@ class Audio:
     def duration(self):
         """ Return length of the audio (seconds) """
         return self._source.duration
-
-    def set_engine(self, engine: AudioEngine):
-        """ Set audio handler to `engine` """
-        self._engine = engine
 
     def play(self):
         """
@@ -257,17 +251,13 @@ class Audio:
         return self._player.volume
 
     @volume.setter
-    def volume(self, new_value: float) -> float:
+    def volume(self, new_value: float):
         """ Return the volume of this audio"""
         self._player.volume = new_value
     
     def clone(self) -> Audio:
         """ Returns a new instance identical to self. """
         temp = Audio(filename=self._filename, constructor=self._constructor)
-        try:
-            temp.set_engine(self._engine)
-        except AttributeError:
-            pass
         return temp
 
 
@@ -470,7 +460,7 @@ class GraphicsEngine:
 
     import arcade.color as COLOR
 
-    __slots__ = '_beatmap', '_time_engine', '_score_manager', '_keyboard', '_game', '_fxs', '_current_time', '_bg'
+    __slots__ = '_beatmap', '_keyboard', '_game', '_fxs', '_current_time', '_bg'
 
     def __init__(self, game: Game, beatmap: Beatmap, keyboard: Keyboard):
         self._beatmap = beatmap
@@ -957,7 +947,6 @@ class HitObject:
         '_press_times',
         '_grades',
         '_beatmap',
-        '_manager',
         '_state'
     )
 
