@@ -473,8 +473,6 @@ class GraphicsEngine:
     __slots__ = '_beatmap', '_time_engine', '_score_manager', '_keyboard', '_game', '_fxs', '_current_time', '_bg'
 
     def __init__(self, game: Game, beatmap: Beatmap, keyboard: Keyboard):
-        self._game = game
-
         self._beatmap = beatmap
         self._keyboard = keyboard
 
@@ -523,8 +521,8 @@ class GraphicsEngine:
         self._draw_pointer()
 
     def _draw_background(self):
-        scale = min(self._game.window.width / self._bg.width, self._game.window.height / self._bg.height)
-        self._bg.draw(self._game.window.width//2, self._game.window.height//2, self._bg.width*scale, self._bg.height*scale)
+        scale = min(_window.width / self._bg.width, _window.height / self._bg.height)
+        self._bg.draw(_window.width//2, _window.height//2, self._bg.width*scale, self._bg.height*scale)
 
     def _draw_keyboard(self):
         """ Draw keyboard """
@@ -667,13 +665,13 @@ class GraphicsEngine:
         """ Draw current combo"""
         combo = _score_manager.combo
         output = f"combo: {combo}"
-        arcade.draw_text(output, 20, self._game.window.height // 2 - 60, arcade.color.WHITE, 16)
+        arcade.draw_text(output, 20, _window.height // 2 - 60, arcade.color.WHITE, 16)
 
     def _draw_score(self):
         """ Draw total score"""
         score = _score_manager.score
         output = f"score: {score}"
-        arcade.draw_text(output, 20, self._game.window.height // 2 + 30, arcade.color.WHITE, 16)
+        arcade.draw_text(output, 20, _window.height // 2 + 30, arcade.color.WHITE, 16)
 
     def _draw_total_accuracy(self):
         """ Draw total accuracy """
@@ -691,13 +689,13 @@ class GraphicsEngine:
         """ Show FPS on screen """
         fps = _time_engine.fps
         output = f"FPS: {fps:.1f}"
-        arcade.draw_text(output, 20, self._game.window.height // 2, arcade.color.WHITE, 16)
+        arcade.draw_text(output, 20, _window.height // 2, arcade.color.WHITE, 16)
 
     def _draw_game_time(self):
         """  """
         time = _time_engine.game_time
         output = f"time: {time:.3f}"
-        arcade.draw_text(output, 20, self._game.window.height // 2 - 30, arcade.color.WHITE, 16)
+        arcade.draw_text(output, 20, _window.height // 2 - 30, arcade.color.WHITE, 16)
 
 
 def get_relative_path(path: Path, relative_root: Path = Path().resolve()):
@@ -1388,7 +1386,8 @@ class GameWindow(arcade.Window):
 
 
 def main():
-    GameWindow()
+    global _window
+    _window = GameWindow()
     arcade.run()
 
 
