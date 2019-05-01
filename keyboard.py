@@ -147,6 +147,8 @@ class Key(Rectangle):
         self._hit_object = None  # type: HitObject
         self._engine = None  # type: GraphicsEngine
 
+        self.graphic = None
+
     def __str__(self):
         return f"key constant: {self.symbol} size: {self.size} posn: {self._position}"
 

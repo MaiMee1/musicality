@@ -246,6 +246,16 @@ class Audio:
     def player(self) -> Optional[pyglet.media.Player]:
         """ Return the player of this audio """
         return self._player
+
+    @property
+    def volume(self) -> float:
+        """ Return the volume of this audio"""
+        return self._player.volume
+
+    @volume.setter
+    def volume(self, new_value: float) -> float:
+        """ Return the volume of this audio"""
+        self._player.volume = new_value
     
     def clone(self) -> Audio:
         """ Returns a new instance identical to self. """
@@ -444,6 +454,7 @@ class FX:
         return self._finish_time
 
     def kill(self):
+        # FIXME
         self._graphics_engine.remove_fx(fx=self)
         for elem in self._object_with_references:
             try:
@@ -463,7 +474,7 @@ class GraphicsEngine:
         self._beatmap = beatmap
         self._keyboard = keyboard
 
-        self._fxs = {}  # type: Dict[object, FX]
+        self._fxs = {}  # type: Dict[object, List[FX]]
 
         self._current_time = 0
 
@@ -478,6 +489,9 @@ class GraphicsEngine:
     def update(self):
         """ Update graphics to match current data """
         self._current_time = self._time_engine.game_time
+        for fxs in self._fxs.values():
+            if fxs[0].finish_time < self._current_time:
+                discard = fxs.pop(0)
 
     def force_update(self):
         self._keyboard.change_resolved = False
@@ -486,7 +500,10 @@ class GraphicsEngine:
 
     def on_draw(self):
         """ Draws everything on the screen """
-        arcade.start_render()
+        from pyglet import gl
+        gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
+        # gl.glMatrixMode(gl.GL_MODELVIEW)
+        # gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
 
         self._draw_background()
 
@@ -530,30 +547,58 @@ class GraphicsEngine:
         for shape in [keyboard.shape] + [key.shape for key in keyboard.keys.values()]:
             shape.draw()
 
-    def _register_fx(self, fx: FX, hash = None):
+        for key in keyboard.keys.values():
+            # FIXME pyglet draw doesn't work in arcade
+            if key.graphic:
+                key.graphic.draw()
+            else:
+                if key.graphic is None:
+                    try:
+                        text = key_.MAP_SYMBOL_TEXT[key.symbol]
+                        multiline = False
+                        if '\n' in text:
+                            multiline = True
+                        label = pyglet.text.Label(
+                            text, 'Montserrat', key.height//2, color=(255, 255, 255, 255),
+                            x=key.position[0], y=key.position[1], anchor_x='center', anchor_y='center',
+                            multiline=False)
+                        key.graphic = label
+                        key.graphic.draw()
+                    except KeyError:
+                        key.graphic = 0
+
+    def _register_fx(self, fxs: List[FX], hash = None):
         """ Add `fx` to to-draw stack """
         if hash is None:
             number = self._time_engine.game_time + random()
-            self._fxs[number.__hash__()] = fx
+            self._fxs[number.__hash__()] = fxs
         else:
-            self._fxs[hash] = fx
+            self._fxs[hash] = fxs
 
-    def remove_fx(self, *, fx: FX = None, hash=None):
+    def remove_fx(self, *, fxs: List[FX] = None, hash=None):
+        # FIXME
         if hash is not None:
-            self._fxs.pop(hash)
+            try:
+                self._fxs.pop(hash)
+            except KeyError:
+                pass
         else:
             to_remove = []
             for k, v in self._fxs.items():
-                if v == fx:
+                if v == fxs:
                     to_remove.append(k)
             for elem in to_remove:
                 self._fxs.pop(elem)
-            raise AssertionError
+
+            # raise AssertionError
 
     def _draw_fx(self):
         """ Draw fx that are on-going """
-        for fx in self._fxs.values():
-            fx.draw()
+        for fxs in [_ for _ in self._fxs.values()]:
+            try:
+                fxs[0].draw()
+            except IndexError:
+                self.remove_fx(fxs=fxs)
 
     def add_grade_fx(self, key: Key, grade):
         """ Draw fx showing grade of the beat pressed at `key`' """
@@ -569,6 +614,10 @@ class GraphicsEngine:
 
     def add_hit_object_animation(self, key: Key, hit_object: HitObject):
         """ Draw incoming hit_object """
+        in_, out = self.create_incoming_fx(key, hit_object)
+        self._register_fx([in_, out], hit_object)
+
+    def create_incoming_fx(self, key: Key, hit_object: HitObject) -> Iterable[FX]:
         def f(*args, **kwargs):
             center_x, center_y, width, height, rgba, tilt_angle = args
 
@@ -581,11 +630,31 @@ class GraphicsEngine:
                                          rgba,
                                          tilt_angle=tilt_angle)
 
+        def g(*args, **kwargs):
+            center_x, center_y, width, height, rgba, tilt_angle = args
+            try:
+                r, g, b = rgba
+                a = 255
+            except ValueError:
+                r, g, b, a = rgba
+
+            elapsed = kwargs.pop('elapsed', None)
+            total = kwargs.pop('total', None)
+
+            arcade.draw_rectangle_filled(center_x, center_y,
+                                         width,
+                                         height,
+                                         (r, g, b, a*(1 - elapsed/total)),
+                                         tilt_angle=tilt_angle)
+
+
         rgba_ = GraphicsEngine.COLOR.PINK
 
         fx = FX(self, self._time_engine, self._current_time, hit_object.reach_times[0], f, [key],
                 key.center_x, key.center_y, key.width, key.height, rgba_, key.tilt_angle)
-        self._register_fx(fx, hit_object)
+        end_fx = FX(self, self._time_engine, hit_object.reach_times[0], hit_object.reach_times[0] + 0.3, g, [key],
+                key.center_x, key.center_y, key.width, key.height, rgba_, key.tilt_angle)
+        return fx, end_fx
 
     def _draw_pointer(self):
         """ Draw custom pointer """
@@ -1003,10 +1072,10 @@ class HitObject:
         self._symbol = new_symbol
 
     @property
-    def hit_sound(self) -> int:
+    def hit_sound(self) -> (int, str):
         """ Return hit_sounds of object """
         # TODO only return normal for now
-        return 0
+        return 0, 'soft'
 
     @property
     def type(self) -> HitObject.Type:
@@ -1082,7 +1151,7 @@ class HitObjectManager:
                 hit_object.change_state('active')
                 send.append(hit_object)
         for hit_object in self._sent:
-            if time > hit_object.reach_times[-1]:
+            if time > hit_object.reach_times[-1] + 0.3:
                 if hit_object.state != HitObject.STATE.PASSED:
                     self._change_stack_and_remove_fx(hit_object)
                     self._score_engine.register_hit(hit_object, -1, hit_object.type)
@@ -1102,12 +1171,12 @@ class HitObjectManager:
         hit_object = None  # type: Optional[HitObject]
         if key:
             key.press()
-            self._audio_engine.play_sound(0, 'soft')
             try:
                 hit_object = key.hit_object
             except AttributeError:
                 print('no object')
         if hit_object:
+            self._audio_engine.play_sound(*hit_object.hit_sound)
             try:
                 time = self._time_engine.game_time
                 hit_object.press(time)
@@ -1203,6 +1272,10 @@ class Game:
         if symbol == key_.P:
             if self.state != Game.STATE.GAME_PLAYING:
                 self.start()
+        if symbol == key_.NUM_ADD:
+            self._audio_engine.song.volume *= 2
+        if symbol == key_.NUM_SUBTRACT:
+            self._audio_engine.song.volume *= 0.5
         if symbol == 99 and modifiers & 1 and modifiers & 2:
             # CTRL + SHIFT + C to close, for fullscreen emergency
             # TODO: Find a good way to exit
