@@ -3,10 +3,10 @@ from typing import NewType
 import itertools
 
 # for Beatmap
-_sample = ('hitnormal', 'hitwhistle', 'hitfinish', 'hitclap')
-_sample_set = ('normal', 'soft', 'drum')
+SAMPLE = ('hitnormal', 'hitwhistle', 'hitfinish', 'hitclap')
+SAMPLE_SET = ('normal', 'soft', 'drum')
 
-SAMPLE_NAMES = ('-'.join((x, y)) for x in _sample_set for y in _sample)
+SAMPLE_NAMES = set('-'.join((x, y)) for x in SAMPLE_SET for y in SAMPLE)
 # SAMPLE_SET_FILENAMES = map(lambda x: '-'.join(x), itertools.product(_sample_set, _sample))
 
 

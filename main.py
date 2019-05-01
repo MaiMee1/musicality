@@ -10,15 +10,15 @@ import arcade
 import pyglet
 
 import key as key_
-from new_keyboard import Keyboard, Key, Rectangle
-import new_keyboard as keyboard_
+from keyboard import Keyboard, Key, Rectangle
+import keyboard as keyboard_
 # TODO how to play
 
 
 class TimeEngine:
     """ Manages time """
 
-    __slots__ = 'time', '_frame_times', '_t', '_start_time', '_dt', '_start'
+    __slots__ = 'time', '_frame_times', '_t', '_start_time', '_dt', '_start', '_audio_engine'
 
     def __init__(self, maxlen: int = 60):
         import time
@@ -30,6 +30,10 @@ class TimeEngine:
         self._dt = 0
         self.tick()
         self._start = False
+
+    def init_engine(self, game: Game):
+        """ Maneuvering circular dependency """
+        self._audio_engine = game._audio_engine
 
     def tick(self):
         """ Call to signify one frame passing """
@@ -59,7 +63,12 @@ class TimeEngine:
     def game_time(self) -> float:
         """ Return current time at function call in seconds """
         try:
-            assert self._start == True
+            assert self._start
+            time = self.time()
+            audio_time = self._audio_engine.song.time
+            diff = audio_time - time
+            if diff:
+                time += diff / 2
             return self.time() - self._start_time
         except AssertionError:
             return 0
@@ -139,14 +148,21 @@ class Time:
 class Audio:
     """ Represents audio file """
 
-    __slots__ = '_source', '_engine', '_player'
+    __slots__ = '_source', '_player', '_filename', '_engine', '_constructor'
 
     def __init__(self, *,
                  filepath: Path = None, absolute: bool = False,
-                 filename: str = '', loader: pyglet.resource.Loader = None):
+                 filename: str = '', loader: pyglet.resource.Loader = None,
+                 **kwargs):
         """ Load audio file from (1) filepath or (2) filename using a loader.
         Assume arguments are in the correct type. """
-        if loader:
+        from functools import partial
+        constructor = kwargs.pop('constructor', None)
+        if constructor:
+            self._constructor = constructor
+            assert filename != ''
+            self._filename = filename
+        elif loader:
             if filename:
                 if filepath:
                     assert filepath.name == filename
@@ -155,19 +171,26 @@ class Audio:
                     filename = filepath.name
                 else:
                     raise TypeError("Audio() needs 'filename' if 'loader' is used and 'filepath' is not specified")
-            self._source = loader.media(filename)
+            self._filename = filename
         else:
-            # FIXME DO NOT USE resource
             if filepath:
-                if not absolute:
-                    filepath = Path().resolve() / filepath
-                pyglet.resource.path.append(str(filepath.parent))
-                pyglet.resource.reindex()
-                self._source = pyglet.media.load(filepath.name)
+                if absolute:
+                    raise AssertionError
+                loader = pyglet.resource.Loader([filepath.parent])
+                self._filename = filepath.name
             else:
                 raise TypeError("Audio() missing 1 required keyword argument: 'filepath'")
+        self._constructor = partial(loader.media, name=self._filename)
+        self._source = self._constructor()
+        self._player = pyglet.media.Player()
+        self._player.queue(self._source)
+
         self._engine: AudioEngine
-        self._player: pyglet.media.Player
+
+    @property
+    def name(self):
+        """ Return the filename of the audio """
+        return self._filename
 
     @property
     def source(self):
@@ -176,7 +199,7 @@ class Audio:
 
     @property
     def duration(self):
-        """ Return length of the audio """
+        """ Return length of the audio (seconds) """
         return self._source.duration
 
     def set_engine(self, engine: AudioEngine):
@@ -184,70 +207,78 @@ class Audio:
         self._engine = engine
 
     def play(self):
-        """ Play the audio """
-        try:
-            self._engine.play(self)
-        except AttributeError:
-            self._source.play()
+        """
+        Begin playing the current source.
 
-    # Need to bind with an engine before callable
+        This has no effect if the player is already playing.
+        """
+        assert not self.playing
+        if self._player.source is None:
+            self._player.queue(self._source)
+        self._player.play()
 
     def stop(self):
         """ Stop the audio if playing """
-        self._engine.pause(self)
-        self._engine.seek(self, 0)
+        self._player.pause()
+        self._player.seek(0)
 
     @property
     def playing(self) -> bool:
         """ Return True if audio is playing, False otherwise """
-        return self._engine.playing(self)
+        return self._player.playing
 
     def pause(self):
         """ Pause the audio """
-        self._engine.pause(self)
+        self._player.pause()
 
     @property
     def time(self):
         """ Return current time of the audio (seconds) """
-        return self._engine.time(self)
+        return self._player.time
 
     @time.setter
-    def time(self, new_time: Union[str, int, float]):
+    def time(self, time: Union[str, int, float]):
         """ Set current time to new_time"""
-        new_time = Time(new_time)
-        self._engine.seek(self, float(new_time))
+        time = Time(time)
+        self._player.seek(float(time))
 
     @property
     def player(self) -> Optional[pyglet.media.Player]:
         """ Return the player of this audio """
+        return self._player
+    
+    def clone(self) -> Audio:
+        """ Returns a new instance identical to self. """
+        temp = Audio(filename=self._filename, constructor=self._constructor)
         try:
-            return self._player
+            temp.set_engine(self._engine)
         except AttributeError:
-            return
-
-    def set_player(self, new_player: pyglet.media.Player):
-        """ Set player to `new_player` """
-        self._player = new_player
+            pass
+        return temp
 
 
 class AudioEngine:
     """ Manages audio """
 
-    __slots__ = 'beatmap', '_sample_sets', '_song', '_audios', '_players'
+    __slots__ = '_beatmap', '_sample_sets', '_song', '_audios', '_players', '_default_loader'
 
-    from constants import SAMPLE_NAMES
-    from constants import HIT_SOUND_MAP
+    from constants import SAMPLE_NAMES, HIT_SOUND_MAP, SAMPLE_SET
 
-    def __init__(self, beatmap: Beatmap, time_engine: TimeEngine):
-        self.beatmap = beatmap
+    def __init__(self, beatmap: Beatmap):
+        self._beatmap = beatmap
         self._sample_sets = []  # type: List[Dict[str, Audio]]
+        self._default_loader = pyglet.resource.Loader(['resources/Default/sample', 'resources/Default'])
 
         self._song = Audio(filename=beatmap.audio_filename, loader=beatmap.resource_loader)
 
         self._audios = []  # type: List[Audio]
-        self._players = []  # type: List[pyglet.media.Player]
 
         self.register(self._song)
+        self._generate_sample_set()
+
+    def init_engine(self, game: Game):
+        """ Maneuvering circular dependency """
+        pass
 
     # def load_song(self, song_path: Optional[Path]):
     #     """ Get things going. (Re)Load file from path and initialize
@@ -255,12 +286,14 @@ class AudioEngine:
     #     pass
 
     def _generate_sample_set(self):
-        d = {name: Audio() for name in self.beatmap.get_samples_filenames()}
-        for name in self.SAMPLE_NAMES:
-            if name not in d.keys():
-                d[name] = AudioEngine._load_default(name)
-        self._sample_sets.extend(d)
-        pass
+        d = {audio.name[:-4]: audio for audio in self._beatmap.generate_hit_sounds()}
+        for name in AudioEngine.SAMPLE_NAMES:
+            if name not in d:
+                audio = Audio(filename=(name+'.wav'), loader=self._default_loader)
+                self.register(audio)
+                d[name] = audio
+        assert d != {}
+        self._sample_sets.append(d)
 
     def _load_default(self, sample: str) -> Audio:
         """ Load sample from default sample """
@@ -275,88 +308,27 @@ class AudioEngine:
             audio.set_engine(self)
         self._audios.extend(audios)
 
-    def play_sound(self, hit_sound: int):
+    def play_sound(self, hit_sound: int, sample_set: str):
         """ Play hit_sound according to code given """
         assert hit_sound in AudioEngine.HIT_SOUND_MAP.keys()
-        try:
-            samples = AudioEngine.HIT_SOUND_MAP[hit_sound]
-            for sample in samples:
-                sample = 'normal-' + sample + '.wav'
-                try:
-                    self._sample_sets[0][sample].play()
-                except:
-                    pass
-        except:
-            pass
+        assert sample_set in AudioEngine.SAMPLE_SET
+
+        for sample in AudioEngine.HIT_SOUND_MAP[hit_sound]:
+            name = sample_set + '-' + sample
+            for sample_dict in self._sample_sets:
+                if sample_dict[name].playing:
+                    continue
+                else:
+                    sample_dict[name].play()
+                    break
+            else:
+                self._generate_sample_set()
+                self._sample_sets[-1][name].play()
 
     @property
     def song(self) -> Audio:
         """ Return the song """
         return self._song
-
-    def _get_player(self, audio) -> (Optional[pyglet.media.Player]):
-        """ Get a player has audio as the current source or recycle one that is not playing or create a new one.
-        Returns: Player, source_loaded (bool) """
-        match = [player for player in self._players if player.source == audio]
-        if match:
-            return match
-        return None
-
-    def _add_player(self, player=None) -> pyglet.media.Player:
-        """ Add `player` to list or generate a new one and add to list """
-        if player is None:
-            player = pyglet.media.Player()
-        self._players.append(player)
-        return player
-
-    def play(self, audio: Audio):
-        """ Play the audio if stopped """
-        player = self._add_player()
-        player.queue(audio.source)
-        player.play()
-
-    def stop(self, audio: Audio):
-        """ Stop the audio if playing """
-        players = self._get_player(audio)
-        if players is not None:
-            player = players[0]
-            player.pause()
-            player.seek(0)
-
-    def playing(self, audio: Audio) -> bool:
-        """ Return True if audio is playing, False otherwise """
-        players = self._get_player(audio)
-        if players is not None:
-            player = players[0]
-            return player.playing
-        return False
-
-    def pause(self, audio: Audio):
-        """ Pause the audio if playing """
-        players = self._get_player(audio)
-        if players is not None:
-            player = players[0]
-            player.pause()
-
-    def restart(self, audio: Audio):
-        """ Play the audio again from the beginning """
-        players = self._get_player(audio)
-        if players is not None:
-            player = players[0]
-            player.seek(0)
-
-    def seek(self, audio: Audio, time: Union[str, int ,float]):
-        """ Seek audio to `time` """
-        players = self._get_player(audio)
-        if players is not None:
-            player = players[0]
-            player.seek(float(time))
-
-    def time(self, audio: Audio) -> Tuple[float]:
-        """ Return current time of audio """
-        players = self._get_player(audio)
-        if players is not None:
-            return tuple(player.time for player in players)
 
 
 class ScoreEngine:
@@ -370,6 +342,10 @@ class ScoreEngine:
         self._not_missed = True
         self._accuracy_stack = deque(maxlen=20)
         self._grade_stack = []
+
+    def init_engine(self, game: Game):
+        """ Maneuvering circular dependency """
+        pass
 
     def register_hit(self, hit_object: HitObject, time: float, type: HitObject.Type):
         """ `time` = -1 for misses """
@@ -483,19 +459,21 @@ class GraphicsEngine:
 
     __slots__ = '_beatmap', '_time_engine', '_score_engine', '_keyboard', '_game', '_fxs', '_current_time', '_bg'
 
-    def __init__(self, game: Game, beatmap: Beatmap, time_engine: TimeEngine, score_engine: ScoreEngine, keyboard: Keyboard):
-        self._game = game  # for update_rate and window only
+    def __init__(self, beatmap: Beatmap, keyboard: Keyboard):
         self._beatmap = beatmap
-        self._time_engine = time_engine
-        self._score_engine = score_engine
         self._keyboard = keyboard
 
         self._fxs = {}  # type: Dict[object, FX]
 
         self._current_time = 0
 
-        path = '/'.join(str(self._beatmap.get_folder_path()).split('\\')) + '/' + self._beatmap.background_filename
-        self._bg = arcade.load_texture(file_name=path)
+        path = self._beatmap.get_folder_path() / self._beatmap.background_filename
+        self._bg = arcade.load_texture(file_name=path.as_posix())
+
+    def init_engine(self, game: Game):
+        """ Maneuvering circular dependency """
+        self._game = game  # for update_rate and window only
+        self._time_engine, self._score_engine = game._time_engine, game._score_engine
 
     def update(self):
         """ Update graphics to match current data """
@@ -650,7 +628,7 @@ class GraphicsEngine:
     def _draw_game_time(self):
         """  """
         time = self._time_engine.game_time
-        output = f"time: {time:.1f}"
+        output = f"time: {time:.3f}"
         arcade.draw_text(output, 20, self._game.window.height // 2 - 30, arcade.color.WHITE, 16)
 
 
@@ -683,14 +661,11 @@ class Beatmap:
             raise NotImplementedError('.msc files not implemented yet')
         assert filepath.suffix == '.osu', 'only use this to open .osu files'
 
-        # load default samples
-        self._sample = {file.name:file.resolve()
-                        for file in Path('resources/Default/sample').iterdir()}  # type: Dict[str, Path]
         # custom sample override
+        from constants import SAMPLE_NAMES
         wav_files = filepath.glob('*.wav')
-        for file in wav_files:
-            if file.name in (name for name in self._sample.keys()):
-                self._sample[file.name] = file.resolve()
+        self._sample_filenames = [file.name for file in wav_files
+                                  if file.name in (name + '.wav' for name in SAMPLE_NAMES)]
 
         # load info from .osu
         def read_until(text_file: Union[StringIO, TextIO], starting_str: str) -> str:
@@ -815,21 +790,40 @@ class Beatmap:
         return self._audio_filepath.name
 
     @property
-    def background_filename(self) -> str:
+    def background_filename(self) -> Optional[str]:
         """ Return name of the song file """
-        assert self._background_filename is not None
-        return self._background_filename
+        if self._background_filename:
+            return self._background_filename
+
+    @property
+    def video_filename(self) -> Optional[str]:
+        """ Return name of the video file """
+        return self._video_filename
+
+    def background_image(self) -> Optional[pyglet.image.AbstractImage]:
+        """ Generate and return an image that can be drawn """
+        if self._background_filename:
+            return self._loader.image(self._background_filename)
 
     def get_samples_filenames(self) -> List[str]:
         """ Return name of the custom sample that exists """
         filenames = []
-        for name, path in self._sample.items():
+        for name, path in self._sample_filenames.items():
             try:
                 path.relative_to(Path().resolve())
                 filenames.append(name)
             except ValueError:
                 pass
         return filenames
+
+    def generate_audio(self) -> Audio:
+        """ Generate and return an audio player object """
+        return Audio(filename=self.audio_filename, loader=self._loader)
+
+    def generate_hit_sounds(self) -> List[Audio]:
+        """ Generate and return a list of audio objects """
+        temp = [Audio(filename=name, loader=self._loader) for name in self._sample_filenames]
+        return temp
 
     def generate_video(self) -> pyglet.media.Source:
         """ Generate and return a video that can be played, played, paused, replayed
@@ -838,8 +832,9 @@ class Beatmap:
 
     def generate_hit_objects(self, score_engine: ScoreEngine) -> List[HitObject]:
         """ Generate and return a list of processed hit_objects """
-        from random import choice
+        from random import choice, seed
         import key
+        seed(round(sum(self._hit_times), 3))
         hit_objects = [
             HitObject(self, score_engine, hit_time, choice(key.normal_keys), HitObject.TYPE.TAP)
             for hit_time in self._hit_times
@@ -870,72 +865,6 @@ class Beatmap:
     def AR(self) -> float:
         """ Return the approach rate of the instance """
         return self._difficulty['ApproachRate']
-
-    # def get_audio_path(self, absolute=False) -> Path:
-    #     """ Return path to the audio file-- the song (mostly .mp3) --of
-    #     the instance. """
-    #     if absolute:
-    #         return Path().resolve() / self._audio_filepath
-    #     return  self._audio_filepath
-    #
-
-    # def generate_audio(self) -> Audio:
-    #     """ Generate and return an audio player object """
-    #     pass
-    #     # return Audio(filename=self.audio_filename, loader=self._loader)
-
-    # def get_hit_sound_paths(self, absolute=False) -> List[Path]:
-    #     """ Return a list of paths to hit_sounds-- sounds a keypress
-    #     maps to (mostly .wav) --files of the instance. """
-    #     pass
-    #
-
-    # def generate_hit_sounds(self) -> List[Audio]:
-    #     """ Generate and return a list of audio objects """
-    #     return [Audio(filepath=path) for path in self._sample.values()]
-    #
-    # def get_hit_sound(self, name: str) -> Audio:
-    #     """ Generate and return an audio object """
-    #     assert name in Beatmap.SAMPLE_NAMES
-    #     return Audio(filepath=self._sample[name])
-    #
-    # def get_background_path(self, absolute=False) -> Optional[Path]:
-    #     """ Return path to background image(s?) of the instance """
-    #     if self._background_filename is None:
-    #         return None
-    #     if absolute:
-    #         return self.get_folder_path(absolute=True) / self._background_filename
-    #     return self.get_folder_path() / self._background_filename
-    #
-    # @property
-    # def background_filename(self) -> Optional[str]:
-    #     """ Return name of the background image file """
-    #     if self._background_filename is None:
-    #         return self._background_filename
-    #
-    # def background_image(self) -> pyglet.image.AbstractImage:
-    #     """ Generate and return an image that can be drawn """
-    #     pass
-    #
-    # def get_video_path(self, absolute=False) -> Optional[Path]:
-    #     """ Return path to video of the instance """
-    #     if self._video_filename is None:
-    #         return None
-    #     if absolute:
-    #         return self.get_folder_path(absolute=True) / self._video_filename
-    #     return self.get_folder_path() / self._video_filename
-    #
-    # @property
-    # def video_filename(self) -> Optional[str]:
-    #     """ Return name of the video file """
-    #     if self._video_filename is None:
-    #         return None
-    #     return self._video_filename
-    #
-    # def video(self) -> pyglet.media.Source:
-    #     """ Generate and return a video that can be played, played, paused, replayed
-    #     , and set time. """
-    #     pass
 
 
 class HitObject:
@@ -1129,15 +1058,18 @@ class KeyboardModel:
 
 class HitObjectManager:
     """ Manages sending hit_objects to keys and GraphicEngine"""
-    def __init__(self, hit_objects: List[HitObject], time_engine: TimeEngine, graphics_engine: GraphicsEngine, audio_engine: AudioEngine, score_engine: ScoreEngine, keyboard: Keyboard):
-        self._time_engine = time_engine
-        self._graphics_engine = graphics_engine
-        self._audio_engine = audio_engine
-        self._score_engine = score_engine
+    def __init__(self, hit_objects: List[HitObject], keyboard: Keyboard):
         self._keys = keyboard.keys
         self._incoming = self._hit_objects = hit_objects
         self._sent = []  # type: List[HitObject]
         self._passed = []  # type: List[HitObject]
+
+    def init_engine(self, game: Game):
+        """  """
+        self._time_engine = game._time_engine
+        self._graphics_engine = game._graphics_engine
+        self._audio_engine = game._audio_engine
+        self._score_engine = game._score_engine
 
     def update(self):
         time = self._time_engine.game_time
@@ -1170,7 +1102,7 @@ class HitObjectManager:
         hit_object = None  # type: Optional[HitObject]
         if key:
             key.press()
-            self._audio_engine.
+            self._audio_engine.play_sound(0, 'soft')
             try:
                 hit_object = key.hit_object
             except AttributeError:
@@ -1221,16 +1153,19 @@ class Game:
         self._beatmap = Beatmap(filepath)
         self._score_engine = ScoreEngine(beatmap=self._beatmap)
         self._time_engine = TimeEngine()
-        self._audio_engine = AudioEngine(beatmap=self._beatmap, time_engine=self._time_engine)
+        self._audio_engine = AudioEngine(beatmap=self._beatmap)
         keyboard_.set_scaling(5)
         self._keyboard = Keyboard(width//2, height//2, model='small notebook', color=arcade.color.LIGHT_BLUE, alpha=150)
-        self._graphics_engine = GraphicsEngine(self, beatmap=self._beatmap, time_engine=self._time_engine, score_engine=self._score_engine, keyboard=self._keyboard)
+        self._graphics_engine = GraphicsEngine(beatmap=self._beatmap, keyboard=self._keyboard)
         self._keyboard.set_graphics_engine(self._graphics_engine)
 
         self._hit_objects = self._beatmap.generate_hit_objects(score_engine=self._score_engine)
-        self._manager = HitObjectManager(hit_objects=self._hit_objects, time_engine=self._time_engine, graphics_engine=self._graphics_engine, audio_engine=self._audio_engine, score_engine=self._score_engine, keyboard=self._keyboard)
+        self._manager = HitObjectManager(hit_objects=self._hit_objects, keyboard=self._keyboard)
         self._state = Game.STATE.GAME_PAUSED
         self._update_rate = 1/60
+
+        for engine in (self._audio_engine, self._score_engine, self._time_engine, self._graphics_engine, self._manager):
+            engine.init_engine(self)
 
     def set_window(self, window: arcade.Window):
         self.window = window
@@ -1256,6 +1191,10 @@ class Game:
         """ This is called during the idle time when it should be called """
         self._time_engine.tick()
         self._graphics_engine.on_draw()
+
+        time = self._audio_engine.song.time
+        output = f"audio time: {time:.3f}"
+        arcade.draw_text(output, 20, self.window.height // 2 - 90, arcade.color.WHITE, 16)
 
     def on_resize(self, width: float, height: float):
         pass
@@ -1328,6 +1267,16 @@ class Game:
         return
 
 
+def swap_codecs():
+    """ Because pyglet is still buggy we need this to ensure ffmpeg is used """
+    decoders = pyglet.media.codecs._decoders
+    assert "pyglet.media.codecs.ffmpeg.FFmpegDecoder" in str(decoders)  # assure that it exists
+    while str(decoders[0])[:41] != "<pyglet.media.codecs.ffmpeg.FFmpegDecoder":
+        # cycle until decoder is ffmpeg
+        temp = decoders.pop(0)
+        decoders.append(temp)
+
+
 class GameWindow(arcade.Window):
     def __init__(self):
         """ Create game window """
@@ -1336,6 +1285,7 @@ class GameWindow(arcade.Window):
                          fullscreen=False, resizable=True, update_rate=1/60)
 
         arcade.set_background_color(arcade.color.BLACK)
+        swap_codecs()
         self.game = Game(1920, 1080, 'MONSTER', 'NORMAL')
         self.game.set_window(self)
 
