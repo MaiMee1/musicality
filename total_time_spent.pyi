@@ -341,7 +341,7 @@ class Beatmap:
 class HitObject:
     """ Represents an Osu! HitObject """
 
-    from constants import HIT_OBJECT_TYPES as TYPE, HIT_OBJECT_STATES as STATE, \
+    from constants import HIT_OBJECT_TYPE as TYPE, HIT_OBJECT_STATE as STATE, \
         HitObjectType as Type, HitObjectState as State
 
     TYPE_NAME_MAP = {

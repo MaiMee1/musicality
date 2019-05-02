@@ -12,21 +12,25 @@ import pyglet
 import key as key_
 from keyboard import Keyboard, Key
 import keyboard as keyboard_
+from type_ import *
+from constants import MouseState, MOUSE_STATE, UIElementState, UI_ELEMENT_STATE
 # TODO how to play
 
-_window = None
+_window = None  # type: Optional[arcade.Window]
 
-_time_engine = None
-_audio_engine = None
-_graphics_engine = None
+_time_engine = None  # type: Optional[TimeEngine]
+_audio_engine = None  # type: Optional[AudioEngine]
+_graphics_engine = None  # type: Optional[GraphicsEngine]
 
-_score_manager = None
+_score_manager = None  # type: Optional[ScoreManager]
+_hit_object_manager = None  # type: Optional[HitObjectManager]
+_UI_manager = None  # type: Optional[UIManger]
 
 
 class TimeEngine:
     """ Manages time """
 
-    __slots__ = 'time', '_frame_times', '_t', '_start_time', '_dt', '_start'
+    __slots__ = 'time', '_frame_times', '_t', '_start_time', '_dt', '_start', '_absolute_time'
 
     def __init__(self, maxlen: int = 60):
         import time
@@ -34,7 +38,7 @@ class TimeEngine:
         self.time = time.perf_counter
         self._frame_times = collections.deque(maxlen=maxlen)
         # Ensure that deque is not empty and sum() != 0
-        self._t = self._start_time = self.time()
+        self._t = self._start_time = self._absolute_time = self.time()
         self._dt = 0
         self.tick()
         self._start = False
@@ -68,14 +72,14 @@ class TimeEngine:
         """ Return current time at function call in seconds """
         try:
             assert self._start
-            time = self.time()
-            audio_time = _audio_engine.song.time
-            diff = audio_time - time
-            if diff:
-                time += diff / 2
-            return self.time() - self._start_time
+            return _audio_engine.song.time
         except AssertionError:
             return 0
+
+    @property
+    def play_time(self) -> float:
+        """ Return current time at function call in seconds """
+        return self.time() - self._absolute_time
 
     @property
     def dt(self) -> float:
@@ -268,26 +272,16 @@ class AudioEngine:
 
     from constants import SAMPLE_NAMES, HIT_SOUND_MAP, SAMPLE_SET
 
-    def __init__(self, beatmap: Beatmap):
-        self._beatmap = beatmap
+    def __init__(self):
         self._sample_sets = []  # type: List[Dict[str, Audio]]
         self._default_loader = pyglet.resource.Loader(['resources/Default/sample', 'resources/Default'])
-
-        self._song = Audio(filename=beatmap.audio_filename, loader=beatmap.resource_loader)
-
         self._audios = []  # type: List[Audio]
 
+    def load_beatmap(self, beatmap: Beatmap):
+        """ Call this each game """
+        self._beatmap = beatmap
+        self._song = Audio(filename=beatmap.audio_filename, loader=beatmap.resource_loader)
         self.register(self._song)
-        self._generate_sample_set()
-
-    def init_engine(self, game: Game):
-        """ Maneuvering circular dependency """
-        pass
-
-    # def load_song(self, song_path: Optional[Path]):
-    #     """ Get things going. (Re)Load file from path and initialize
-    #     for playing. Set game_time to zero - wait_time. """
-    #     pass
 
     def _generate_sample_set(self):
         d = {audio.name[:-4]: audio for audio in self._beatmap.generate_hit_sounds()}
@@ -308,8 +302,6 @@ class AudioEngine:
 
     def register(self, *audios: Audio):
         """ Register the audio file the let audio engine handle it """
-        for audio in audios:
-            audio.set_engine(self)
         self._audios.extend(audios)
 
     def play_sound(self, hit_sound: int, sample_set: str):
@@ -339,17 +331,13 @@ class ScoreManager:
     """ Manages calculation of score, combo, grade, etc. """
     def __init__(self, beatmap: Beatmap):
         from collections import deque
-        self.beatmap = beatmap
+        self._beatmap = beatmap
         self._score = 0
         self._combo = [0]
         self._perfect = True
         self._not_missed = True
         self._accuracy_stack = deque(maxlen=20)
         self._grade_stack = []
-
-    def init_engine(self, game: Game):
-        """ Maneuvering circular dependency """
-        pass
 
     def register_hit(self, hit_object: HitObject, time: float, type: HitObject.Type):
         """ `time` = -1 for misses """
@@ -446,32 +434,40 @@ class FX:
         return self._finish_time
 
     def kill(self):
-        # FIXME
-        _graphics_engine.remove_fx(fx=self)
-        for elem in self._object_with_references:
-            try:
-                elem.remove_fx(self)
-            except AttributeError:
-                pass
+        raise NotImplementedError
 
 
 class GraphicsEngine:
     """ Manages graphical effects and background/video """
 
+    from io import BytesIO
+
     import arcade.color as COLOR
+    from io import BytesIO
+    from random import randint
 
-    __slots__ = '_beatmap', '_keyboard', '_game', '_fxs', '_current_time', '_bg'
+    __slots__ = '_beatmap', '_keyboard', '_game', '_fxs', '_current_time', '_bg', '_video_player', '_video'
 
-    def __init__(self, game: Game, beatmap: Beatmap, keyboard: Keyboard):
-        self._beatmap = beatmap
-        self._keyboard = keyboard
-
+    def __init__(self):
         self._fxs = {}  # type: Dict[object, List[FX]]
-
         self._current_time = 0
+        self._keyboard = None
+        self._bg = None
+        self._video = None
+        self._video_player = None
+
+    def load_beatmap(self, beatmap: Beatmap):
+        """ Call this each game """
+        self._beatmap = beatmap
+        self._video = beatmap.generate_video()
 
         path = self._beatmap.get_folder_path() / self._beatmap.background_filename
         self._bg = arcade.load_texture(file_name=path.as_posix())
+
+    def set_keyboard(self, keyboard: Keyboard):
+        """ Call this each game """
+        self._keyboard = keyboard
+        keyboard.set_graphics_engine(self)
 
     def update(self):
         """ Update graphics to match current data """
@@ -492,9 +488,13 @@ class GraphicsEngine:
         # gl.glMatrixMode(gl.GL_MODELVIEW)
         # gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
 
-        self._draw_background()
+        if self._video_player:
+            self._draw_video()
+        elif self._bg:
+            self._draw_background()
 
-        self._draw_keyboard()
+        if self._keyboard:
+            self._draw_keyboard()
 
         self._draw_fx()
 
@@ -513,6 +513,21 @@ class GraphicsEngine:
     def _draw_background(self):
         scale = min(_window.width / self._bg.width, _window.height / self._bg.height)
         self._bg.draw(_window.width//2, _window.height//2, self._bg.width*scale, self._bg.height*scale)
+
+    def start_video(self):
+        if self._video:
+            self._video_player = pyglet.media.Player()
+            self._video_player.queue(self._video)
+            self._video_player.play()
+
+    def _draw_video(self):
+        a = self._video_player.texture
+
+        frame_stream = GraphicsEngine.BytesIO()
+        a.save(filename=f'{str(hash(GraphicsEngine.randint))[:10]}.png', file=frame_stream, encoder=None)
+        # frame = arcade.Image.open(frame_stream)
+        bg = arcade.load_texture(file_name=frame_stream)
+        bg.draw(_window.width//2, _window.height//2, bg.width, bg.height)
 
     def _draw_keyboard(self):
         """ Draw keyboard """
@@ -557,7 +572,7 @@ class GraphicsEngine:
     def _register_fx(self, fxs: List[FX], hash = None):
         """ Add `fx` to to-draw stack """
         if hash is None:
-            number = self._time_engine.game_time + random()
+            number = _time_engine.game_time + random()
             self._fxs[number.__hash__()] = fxs
         else:
             self._fxs[hash] = fxs
@@ -639,7 +654,7 @@ class GraphicsEngine:
 
         fx = FX(self._current_time, hit_object.reach_times[0], f, [key],
                 key.center_x, key.center_y, key.width, key.height, rgba_, key.tilt_angle)
-        end_fx = FX(hit_object.reach_times[0], hit_object.reach_times[0] + 0.3, g, [key],
+        end_fx = FX(hit_object.reach_times[0], hit_object.reach_times[0] + 0.195, g, [key],
                 key.center_x, key.center_y, key.width, key.height, rgba_, key.tilt_angle)
         return fx, end_fx
 
@@ -653,15 +668,17 @@ class GraphicsEngine:
 
     def _draw_combo(self):
         """ Draw current combo"""
-        combo = _score_manager.combo
-        output = f"combo: {combo}"
-        arcade.draw_text(output, 20, _window.height // 2 - 60, arcade.color.WHITE, 16)
+        if _score_manager:
+            combo = _score_manager.combo
+            output = f"combo: {combo}"
+            arcade.draw_text(output, 20, _window.height // 2 - 60, arcade.color.WHITE, 16)
 
     def _draw_score(self):
         """ Draw total score"""
-        score = _score_manager.score
-        output = f"score: {score}"
-        arcade.draw_text(output, 20, _window.height // 2 + 30, arcade.color.WHITE, 16)
+        if _score_manager:
+            score = _score_manager.score
+            output = f"score: {score}"
+            arcade.draw_text(output, 20, _window.height // 2 + 30, arcade.color.WHITE, 16)
 
     def _draw_total_accuracy(self):
         """ Draw total accuracy """
@@ -881,12 +898,13 @@ class Beatmap:
         temp = [Audio(filename=name, loader=self._loader) for name in self._sample_filenames]
         return temp
 
-    def generate_video(self) -> pyglet.media.Source:
+    def generate_video(self) -> Optional[pyglet.media.Source]:
         """ Generate and return a video that can be played, played, paused, replayed
         , and set time. """
-        pass
+        if self.video_filename:
+            return self._loader.media(self.video_filename)
 
-    def generate_hit_objects(self, score_engine: ScoreManager) -> List[HitObject]:
+    def generate_hit_objects(self) -> List[HitObject]:
         """ Generate and return a list of processed hit_objects """
         from random import choice, seed
         import key
@@ -926,7 +944,7 @@ class Beatmap:
 class HitObject:
     """ Represents an Osu! HitObject """
 
-    from constants import HIT_OBJECT_TYPES as TYPE, HIT_OBJECT_STATES as STATE, \
+    from constants import HIT_OBJECT_TYPE as TYPE, HIT_OBJECT_STATE as STATE, \
         HitObjectType as Type, HitObjectState as State
 
     TYPE_NAME_MAP = {
@@ -1128,7 +1146,7 @@ class HitObjectManager:
                 hit_object.change_state('active')
                 send.append(hit_object)
         for hit_object in self._sent:
-            if time > hit_object.reach_times[-1] + 0.3:
+            if time > hit_object.reach_times[-1] + 0.2:
                 if hit_object.state != HitObject.STATE.PASSED:
                     self._change_stack_and_remove_fx(hit_object)
                     _score_manager.register_hit(hit_object, -1, hit_object.type)
@@ -1188,37 +1206,306 @@ class HitObjectManager:
                 _graphics_engine.remove_fx(hash=hit_object)
 
 
+class BaseShape:
+
+    PRECISION = 10
+
+    __slots__ = '_position'
+
+    def __init__(self, center_x: float, center_y: float):
+        self._position = [center_x, center_y]
+
+    def _get_position(self) -> (float, float):
+        return self._position[0], self._position[1]
+
+    def _set_position(self, new_value: (float, float)):
+        self._position = list(new_value)
+
+    position = property(_get_position, _set_position)
+
+    def _get_center_x(self) -> float:
+        return self._position[0]
+
+    def _set_center_x(self, new_value: float):
+        self._position[0] = new_value
+
+    center_x = property(_get_center_x, _set_center_x)
+
+    def _get_center_y(self) -> float:
+        return self._position[1]
+
+    def _set_center_y(self, new_value: float):
+        self._position[1] = new_value
+
+    center_y = property(_get_center_y, _set_center_y)
+
+    def move(self, delta_x: float, delta_y: float) -> (float, float):
+        """ Return: new position """
+        self.center_x += delta_x
+        self.center_y += delta_y
+        return self.position
+
+    def is_inside(self, x: float, y: float) -> bool:
+        """ Return True if point (x, y) is inside, False otherwise. Abstract method. """
+        raise NotImplementedError
+
+
+class RectangleBase(BaseShape):
+
+    __slots__ = 'width', 'height', '_position'
+
+    def __init__(self, center_x: float, center_y: float, width: float, height: float):
+        super().__init__(center_x, center_y)
+        self.width = width
+        self.height = height
+
+    def _get_right(self) -> float:
+        return self._position[0] + round(self.width / 2, self.PRECISION)
+
+    def _set_right(self, new_value: float):
+        self.center_x += new_value - round(self.width / 2, self.PRECISION) - self.center_x
+
+    right = property(_get_right, _set_right)
+
+    def _get_left(self) -> float:
+        return self._position[0] - round(self.width / 2, self.PRECISION)
+
+    def _set_left(self, new_value: float):
+        self.center_x += new_value + round(self.width / 2, self.PRECISION) - self.center_x
+
+    left = property(_get_left, _set_left)
+
+    def _get_top(self) -> float:
+        return self._position[1] + round(self.height / 2, self.PRECISION)
+
+    def _set_top(self, new_value: float):
+        self.center_y += new_value - round(self.height / 2, self.PRECISION) - self.center_y
+
+    top = property(_get_top, _set_top)
+
+    def _get_bottom(self) -> float:
+        return self._position[1] - round(self.height / 2, self.PRECISION)
+
+    def _set_bottom(self, new_value: float):
+        self.center_y += new_value + round(self.height / 2, self.PRECISION) - self.center_y
+
+    bottom = property(_get_bottom, _set_bottom)
+
+    @property
+    def size(self) -> (float, float):
+        return self.width, self.height
+
+    def is_inside(self, x: float, y: float) -> bool:
+        """ Return True if point (x, y) is inside, False otherwise """
+        return self.left <= x <= self.right and self.bottom <= y <= self.top
+
+
+class CircleBase(BaseShape):
+
+    __slots__ = '_position', 'radius'
+
+    def __init__(self, center_x: float, center_y: float, radius: float):
+        super().__init__(center_x, center_y)
+        self.radius = radius
+
+    def _get_right(self) -> float:
+        return self._position[0] + self.radius
+
+    def _set_right(self, new_value: float):
+        self.center_x += new_value - self.radius - self.center_x
+
+    right = property(_get_right, _set_right)
+
+    def _get_left(self) -> float:
+        return self._position[0] - self.radius
+
+    def _set_left(self, new_value: float):
+        self.center_x += new_value + self.radius - self.center_x
+
+    left = property(_get_left, _set_left)
+
+    def _get_top(self) -> float:
+        return self._position[1] + self.radius
+
+    def _set_top(self, new_value: float):
+        self.center_y += new_value - self.radius - self.center_y
+
+    top = property(_get_top, _set_top)
+
+    def _get_bottom(self) -> float:
+        return self._position[1] - self.radius
+
+    def _set_bottom(self, new_value: float):
+        self.center_y += new_value + self.radius - self.center_y
+
+    bottom = property(_get_bottom, _set_bottom)
+
+    def is_inside(self, x: float, y: float) -> bool:
+        """ Return True if point (x, y) is inside, False otherwise """
+        return ((self.center_x - x)**2 + (self.center_y - y)**2)*0.5 < self.radius
+
+
+class UIElement:
+    """ Represents UI element """
+
+    __slots__ = '_base_shape', '_sprite', '_state'
+
+    def __init__(self, shape: RectangleBase, sprite: arcade.Sprite,
+                 starting_state: UIElementState = UI_ELEMENT_STATE.ACTIVE):
+        sprite.position = shape.position
+
+        self._base_shape = shape
+        self._sprite = sprite
+
+        self._state = starting_state
+
+    @property
+    def position(self) -> (float, float):
+        """ Return the center_x and center_y of the element """
+        return self._base_shape.position
+
+    @position.setter
+    def position(self, new_value: (float, float)):
+        """ Set center of the element to `new_value` """
+        self._base_shape.position = new_value
+        self._sprite.position = new_value
+
+    @property
+    def right(self):
+        return self._base_shape.right
+
+    @right.setter
+    def right(self, new_value: float):
+        self._base_shape.right = new_value
+        self._sprite.right = new_value
+
+    @property
+    def left(self):
+        return self._base_shape.left
+
+    @left.setter
+    def left(self, new_value: float):
+        self._base_shape.left = new_value
+        self._sprite.left = new_value
+
+    @property
+    def top(self):
+        return self._base_shape.top
+
+    @top.setter
+    def top(self, new_value: float):
+        self._base_shape.top = new_value
+        self._sprite.top = new_value
+
+    @property
+    def bottom(self):
+        return self._base_shape.bottom
+
+    @bottom.setter
+    def bottom(self, new_value: float):
+        self._base_shape.bottom = new_value
+        self._sprite.bottom = new_value
+
+    def draw(self):
+        """ Draw the element """
+        _graphics_engine.draw_sprite(self)
+
+    def get_mouse_sprite(self, state: MouseState) -> Optional[arcade.Sprite]:
+        """ Return a sprite for the mouse if any """
+        pass
+
+    def on_hover(self):
+        """ Handle hover event """
+        pass
+
+    def press(self):
+        """ Handle pressing event """
+        pass
+
+    def release(self):
+        """ Handle releasing event """
+        pass
+
+    def is_inside(self, x: float, y: float) -> bool:
+        """ Return True if point (x, y) is inside, False otherwise """
+        return self._base_shape.is_inside(x, y)
+
+
+class UIManger:
+    """ Manges UI elements (currently mouse only) """
+    def __init__(self):
+        self._interactable = []
+        self._pressable = self._clikable = []  # clikable not implemented
+        self._pressed = []
+
+    def on_mouse_motion(self, x: float, y: float, dx: float, dy: float):
+        for interactable in self._interactable:
+            if interactable.inside(x, y):
+                _graphics_engine.mouse.set_state(MOUSE_STATE.HOVER)
+                if interactable.mouse_sprite_hover:
+                    _graphics_engine.mouse.set_graphic(interactable.get_mouse_sprite(MOUSE_STATE.HOVER))
+                interactable.on_hover()
+
+    def on_mouse_press(self, x: float, y: float, button: int, modifiers: int):
+        for pressable in self._pressable:
+            if pressable.inside(x, y):
+                pressable.press()
+                _graphics_engine.mouse.set_state(MOUSE_STATE.PRESS)
+                if pressable.mouse_sprite_press:
+                    _graphics_engine.mouse.set_graphic(pressable.get_mouse_sprite(MOUSE_STATE.PRESS))
+
+    def on_mouse_drag(self, x: float, y: float, dx: float, dy: float,
+                      buttons: int, modifiers: int):
+        pass
+
+    def on_mouse_release(self, x: float, y: float, button: int, modifiers: int):
+        for pressable in self._pressed:
+            pressable.release()
+        _graphics_engine.mouse.set_state(MOUSE_STATE.IDLE)
+
+    def on_mouse_scroll(self, x: int, y: int, scroll_x: int, scroll_y: int):
+        pass
+
+
 class Game:
     """ """
     from constants import GameState as State, GAME_STATE as STATE
 
     def __init__(self, width, height, song: str, difficulty: str):
-        global _score_manager, _time_engine, _audio_engine, _graphics_engine
-
+        """ """
+        global _score_manager, _hit_object_manager, _UI_manager
         filepath = self.get_beatmap_filepath(song, difficulty)
         if filepath is None:
             raise AssertionError
         self._beatmap = Beatmap(filepath)
-        _score_manager = self._score_manager = ScoreManager(beatmap=self._beatmap)
-        _time_engine = self._time_engine = TimeEngine()
-        _audio_engine = self._audio_engine = AudioEngine(beatmap=self._beatmap)
+
         keyboard_.set_scaling(5)
         self._keyboard = Keyboard(width//2, height//2, model='small notebook', color=arcade.color.LIGHT_BLUE, alpha=150)
-        _graphics_engine = self._graphics_engine = GraphicsEngine(self, beatmap=self._beatmap, keyboard=self._keyboard)
-        self._keyboard.set_graphics_engine(self._graphics_engine)
 
-        self._hit_objects = self._beatmap.generate_hit_objects(score_engine=self._score_manager)
-        self._manager = HitObjectManager(hit_objects=self._hit_objects, keyboard=self._keyboard)
-        self._state = Game.STATE.GAME_PAUSED
+        _score_manager = self._score_manager = ScoreManager(beatmap=self._beatmap)
+        self._hit_objects = self._beatmap.generate_hit_objects()
+        _hit_object_manager = self._hit_object_manager = HitObjectManager(hit_objects=self._hit_objects, keyboard=self._keyboard)
+        _UI_manager = self._UI_manager = UIManger()
+
+        self._time_engine = _time_engine
+        self._audio_engine = _audio_engine
+        self._graphics_engine = _graphics_engine
+
+        for elem in (_audio_engine, _graphics_engine):
+            elem.load_beatmap(self._beatmap)
+
+        _graphics_engine.set_keyboard(self._keyboard)
+
         self._update_rate = 1/60
+        self._state = Game.STATE.GAME_PAUSED
 
-    def set_window(self, window: arcade.Window):
-        self.window = window
+        self.window = _window
 
     def start(self):
         """ Start the game """
         self._state = Game.STATE.GAME_PLAYING
         self._audio_engine.song.play()
+        self._graphics_engine.start_video()
         self._time_engine.start()
 
     def pause(self):
@@ -1226,7 +1513,7 @@ class Game:
         pass
 
     def update(self, delta_time: float):
-        self._manager.update()
+        self._hit_object_manager.update()
         self._graphics_engine.update()
 
     def on_update(self, delta_time: float):
@@ -1239,7 +1526,7 @@ class Game:
 
         time = self._audio_engine.song.time
         output = f"audio time: {time:.3f}"
-        arcade.draw_text(output, 20, self.window.height // 2 - 90, arcade.color.WHITE, 16)
+        arcade.draw_text(output, 20, _window.height // 2 - 90, arcade.color.WHITE, 16)
 
     def on_resize(self, width: float, height: float):
         pass
@@ -1257,7 +1544,7 @@ class Game:
             # TODO: Find a good way to exit
             pyglet.app.exit()
 
-        self._manager.on_key_press(symbol, modifiers)
+        self._hit_object_manager.on_key_press(symbol, modifiers)
 
     def on_key_release(self, symbol: int, modifiers: int):
         try:
@@ -1271,18 +1558,21 @@ class Game:
                 if hit_object.type == HitObject.TYPE.HOLD:
                     hit_object.press(self._time_engine.game_time)
 
+    def on_mouse_motion(self, x: float, y: float, dx: float, dy: float):
+        _UI_manager.on_mouse_motion(x, y, dx, dy)
+
     def on_mouse_press(self, x: float, y: float, button: int, modifiers: int):
-        pass
+        _UI_manager.on_mouse_press(x, y, button, modifiers)
 
     def on_mouse_drag(self, x: float, y: float, dx: float, dy: float,
                       buttons: int, modifiers: int):
-        pass
+        _UI_manager.on_mouse_drag(x, y, dx, dy, buttons, modifiers)
 
     def on_mouse_release(self, x: float, y: float, button: int, modifiers: int):
-        pass
+        _UI_manager.on_mouse_release(x, y, button, modifiers)
 
     def on_mouse_scroll(self, x: int, y: int, scroll_x: int, scroll_y: int):
-        pass
+        _UI_manager.on_mouse_scroll(x, y, scroll_x, scroll_y)
 
     @property
     def update_rate(self):
@@ -1329,14 +1619,18 @@ def swap_codecs():
 class GameWindow(arcade.Window):
     def __init__(self):
         """ Create game window """
-
+        global _time_engine, _audio_engine, _graphics_engine
         super().__init__(1920, 1080, "musicality",
                          fullscreen=False, resizable=True, update_rate=1/60)
-
         arcade.set_background_color(arcade.color.BLACK)
+
         swap_codecs()
-        self.game = Game(1920, 1080, 'MONSTER', 'NORMAL')
-        self.game.set_window(self)
+
+        _time_engine = TimeEngine()
+        _audio_engine = AudioEngine()
+        _graphics_engine = GraphicsEngine()
+
+        self.game = Game(1920, 1080, 'Sayonara no Yukue', 'Advanced')
 
     def update(self, delta_time: float):
         self.game.update(delta_time)
@@ -1349,6 +1643,9 @@ class GameWindow(arcade.Window):
 
     def on_resize(self, width: float, height: float):
         self.game.on_resize(width, height)
+
+    def on_mouse_motion(self, x: float, y: float, dx: float, dy: float):
+        self.game.on_mouse_motion(x, y, dx, dy)
 
     def on_key_press(self, symbol: int, modifiers: int):
         self.game.on_key_press(symbol, modifiers)

@@ -24,7 +24,7 @@ def set_scaling(new_value):
     SCALING = SCALING_CONSTANT / SEP
 
 
-class Rectangle:
+class DrawableRectangle:
 
     # __slots__ = 'width', 'height', '_position', 'border_width', 'tilt_angle', 'filled', 'color', 'alpha', 'shape', 'change_resolved'
 
@@ -126,7 +126,7 @@ class Rectangle:
         return self.width, self.height
 
 
-class Key(Rectangle):
+class Key(DrawableRectangle):
     """ Represents a key on the virtual keyboard """
 
     COLOR_INACTIVE = arcade.color.BLACK, 150
@@ -202,7 +202,7 @@ class Key(Rectangle):
         return self._state
 
 
-def _align_center_x(shapes: List[Rectangle], index: int = 0, most=False) -> float:
+def _align_center_x(shapes: List[DrawableRectangle], index: int = 0, most=False) -> float:
     """ Returns center_x aligned to """
     if most:
         right = max([shape.right for shape in shapes])
@@ -215,7 +215,7 @@ def _align_center_x(shapes: List[Rectangle], index: int = 0, most=False) -> floa
     return new_x
 
 
-def _align_center_y(shapes: List[Rectangle], index: int = 0, most=False) -> float:
+def _align_center_y(shapes: List[DrawableRectangle], index: int = 0, most=False) -> float:
     """ Returns center_y aligned to """
     if most:
         top = max([shape.top for shape in shapes])
@@ -228,7 +228,7 @@ def _align_center_y(shapes: List[Rectangle], index: int = 0, most=False) -> floa
     return new_y
 
 
-def _align_right(shapes: List[Rectangle], index: int = 0, most=False) -> float:
+def _align_right(shapes: List[DrawableRectangle], index: int = 0, most=False) -> float:
     """ Returns center_x aligned to """
     if most:
         new_right = max([shape.right for shape in shapes])
@@ -239,7 +239,7 @@ def _align_right(shapes: List[Rectangle], index: int = 0, most=False) -> float:
     return new_right
 
 
-def _align_left(shapes: List[Rectangle], index: int = 0, most=False) -> float:
+def _align_left(shapes: List[DrawableRectangle], index: int = 0, most=False) -> float:
     """ Returns center_x aligned to """
     if most:
         new_left = min([shape.left for shape in shapes])
@@ -250,7 +250,7 @@ def _align_left(shapes: List[Rectangle], index: int = 0, most=False) -> float:
     return new_left
 
 
-def _align_top(shapes: List[Rectangle], index: int = 0, most=False) -> float:
+def _align_top(shapes: List[DrawableRectangle], index: int = 0, most=False) -> float:
     """ Returns bottom aligned to """
     if most:
         new_top = max([shape.top for shape in shapes])
@@ -261,7 +261,7 @@ def _align_top(shapes: List[Rectangle], index: int = 0, most=False) -> float:
     return new_top
 
 
-def _align_bottom(shapes: List[Rectangle], index: int = 0, most=False) -> float:
+def _align_bottom(shapes: List[DrawableRectangle], index: int = 0, most=False) -> float:
     """ Returns bottom aligned to """
     if most:
         new_bottom = min([shape.bottom for shape in shapes])
@@ -272,7 +272,7 @@ def _align_bottom(shapes: List[Rectangle], index: int = 0, most=False) -> float:
     return new_bottom
 
 
-def _stack_right(shapes: List[Rectangle], *, sep: float) -> (float, float):
+def _stack_right(shapes: List[DrawableRectangle], *, sep: float) -> (float, float):
     """ Returns last elem's position """
     self = None
     for i in range(len(shapes)):
@@ -391,7 +391,7 @@ def _create_mechanical_keys() -> Dict[int, Key]:
     raise NotImplementedError
 
 
-class Keyboard(Rectangle):
+class Keyboard(DrawableRectangle):
     """ Represents the board behind keys """
 
     def __init__(self, center_x: int, center_y: int, *, model: str, **kwargs):
