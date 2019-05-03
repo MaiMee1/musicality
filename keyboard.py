@@ -24,28 +24,14 @@ def set_scaling(new_value):
     SCALING = SCALING_CONSTANT / SEP
 
 
-class DrawableRectangle:
+class BaseShape:
 
-    # __slots__ = 'width', 'height', '_position', 'border_width', 'tilt_angle', 'filled', 'color', 'alpha', 'shape', 'change_resolved'
+    PRECISION = 10
 
-    def __init__(self, center_x: float, center_y: float, width: float, height: float,
-                 color: Color = arcade.color.BLACK, alpha: int = 255, **kwargs):
-        self.width = width
-        self.height = height
+    __slots__ = '_position'
+
+    def __init__(self, center_x: float, center_y: float):
         self._position = [center_x, center_y]
-
-        self.border_width = kwargs.pop('border_width', 1)  # type: float
-        self.tilt_angle = kwargs.pop('tilt_angle', 0)  # type: float
-        self.filled = kwargs.pop('filled', True)  # type: float
-
-        self.color = color
-        self.alpha = alpha
-
-        self.shape = None
-        self.change_resolved = False
-
-    def __str__(self):
-        return f"size: {self.size} posn: {self._position}"
 
     def _get_position(self) -> (float, float):
         return self._position[0], self._position[1]
@@ -77,37 +63,79 @@ class DrawableRectangle:
         self.center_y += delta_y
         return self.position
 
+    def is_inside(self, x: float, y: float) -> bool:
+        """ Return True if point (x, y) is inside, False otherwise. Abstract method. """
+        raise NotImplementedError
+
+
+class RectangleBase(BaseShape):
+
+    __slots__ = 'width', 'height', '_position'
+
+    def __init__(self, center_x: float, center_y: float, width: float, height: float):
+        super().__init__(center_x, center_y)
+        self.width = width
+        self.height = height
+
     def _get_right(self) -> float:
-        return self._position[0] + round(self.width / 2, PRECISION)
+        return self._position[0] + round(self.width / 2, self.PRECISION)
 
     def _set_right(self, new_value: float):
-        self.center_x += new_value - round(self.width / 2, PRECISION) - self.center_x
+        self.center_x += new_value - round(self.width / 2, self.PRECISION) - self.center_x
 
     right = property(_get_right, _set_right)
 
     def _get_left(self) -> float:
-        return self._position[0] - round(self.width / 2, PRECISION)
+        return self._position[0] - round(self.width / 2, self.PRECISION)
 
     def _set_left(self, new_value: float):
-        self.center_x += new_value + round(self.width / 2, PRECISION) - self.center_x
+        self.center_x += new_value + round(self.width / 2, self.PRECISION) - self.center_x
 
     left = property(_get_left, _set_left)
 
     def _get_top(self) -> float:
-        return self._position[1] + round(self.height / 2, PRECISION)
+        return self._position[1] + round(self.height / 2, self.PRECISION)
 
     def _set_top(self, new_value: float):
-        self.center_y += new_value - round(self.height / 2, PRECISION) - self.center_y
+        self.center_y += new_value - round(self.height / 2, self.PRECISION) - self.center_y
 
     top = property(_get_top, _set_top)
 
     def _get_bottom(self) -> float:
-        return self._position[1] - round(self.height / 2, PRECISION)
+        return self._position[1] - round(self.height / 2, self.PRECISION)
 
     def _set_bottom(self, new_value: float):
-        self.center_y += new_value + round(self.height / 2, PRECISION) - self.center_y
+        self.center_y += new_value + round(self.height / 2, self.PRECISION) - self.center_y
 
     bottom = property(_get_bottom, _set_bottom)
+
+    @property
+    def size(self) -> (float, float):
+        return self.width, self.height
+
+    def is_inside(self, x: float, y: float) -> bool:
+        """ Return True if point (x, y) is inside, False otherwise """
+        return self.left <= x <= self.right and self.bottom <= y <= self.top
+
+
+class DrawableRectangle(RectangleBase):
+
+    def __init__(self, center_x: float, center_y: float, width: float, height: float,
+                 color: Color = arcade.color.BLACK, alpha: int = 255, **kwargs):
+        super().__init__(center_x, center_y, width, height)
+
+        self.border_width = kwargs.pop('border_width', 1)  # type: float
+        self.tilt_angle = kwargs.pop('tilt_angle', 0)  # type: float
+        self.filled = kwargs.pop('filled', True)  # type: float
+
+        self.color = color
+        self.alpha = alpha
+
+        self.shape = None
+        self.change_resolved = False
+
+    def __str__(self):
+        return f"size: {self.size} posn: {self._position}"
 
     def _get_opacity(self) -> float:
         return round(self.alpha / 255, 1)
@@ -120,10 +148,6 @@ class DrawableRectangle:
     @property
     def rgba(self) -> Color:
         return self.color[0], self.color[1], self.color[2], self.alpha
-
-    @property
-    def size(self) -> (float, float):
-        return self.width, self.height
 
 
 class Key(DrawableRectangle):

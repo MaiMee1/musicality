@@ -337,21 +337,20 @@ class ScoreManager:
         self._perfect = True
         self._not_missed = True
         self._accuracy_stack = deque(maxlen=20)
-        self._grade_stack = []
+        self._abs_accuracy_stack = []
 
     def register_hit(self, hit_object: HitObject, time: float, type: HitObject.Type):
         """ `time` = -1 for misses """
         # TODO
-        accuracy = self._calculate_accuracy(time)
+        ideal = hit_object.get_reach_time()
+        assert ideal is not None
+        accuracy = self._calculate_accuracy(ideal, time)
         grade = self._calculate_grade(accuracy)
         score = self._calculate_score(grade, type)
 
-        if time == -1:
-            grade = 'miss'
-            score = 0
-
         self._accuracy_stack.append(accuracy)
-        self._grade_stack.append(abs(1-accuracy))
+        print(1 - abs(accuracy))
+        self._abs_accuracy_stack.append(1 - abs(accuracy))
         if self._perfect:
             if grade != 'perfect':
                 self._perfect = False
@@ -364,17 +363,33 @@ class ScoreManager:
         hit_object.add_grade(grade)
         self._score += score
 
-    def _calculate_accuracy(self, time: float) -> float:
-        # TODO
-        return 0
+    def _calculate_accuracy(self, ideal: float, time: float) -> float:
+        dt = time - ideal
+        ac = dt / 0.5
+        if ac > 1:
+            ac = 1
+        elif ac < -1:
+            ac = -1
+        return ac
 
     def _calculate_grade(self, accuracy: float) -> str:
-        # TODO
+        abs_dt = abs(accuracy)
+        if abs_dt >= 1:
+            return 'miss'
+        if abs_dt >= 0.67:
+            return 'bad'
+        if abs_dt >= 0.33:
+            return 'good'
         return 'perfect'
 
     def _calculate_score(self, grade: str, type: HitObject.Type):
-        # TODO
-        return 300
+        if grade == 'perfect':
+            return 300
+        if grade == 'good':
+            return 100
+        if grade == 'bad':
+            return 50
+        return 1
 
     @property
     def score(self) -> int:
@@ -396,13 +411,24 @@ class ScoreManager:
             return 'SS'
         if self._not_missed:
             return 'S'
-        # TODO
-        return 'A'
+        ac = self.overall_accuracy
+        if ac >= 0.8:
+            return 'A'
+        if ac >= 0.7:
+            return 'B'
+        if ac >= 0.6:
+            return 'C'
+        if ac >= 0.5:
+            return 'D'
+        return 'F'
 
     @property
     def overall_accuracy(self) -> float:
         """ Returns current overall accuracy in percent """
-        return sum(self._grade_stack) / len(self._grade_stack)
+        try:
+            return sum(self._abs_accuracy_stack) / len(self._abs_accuracy_stack)
+        except ZeroDivisionError:
+            return 1
 
     @property
     def current_accuracies(self) -> Iterable[float]:
@@ -489,12 +515,14 @@ class GraphicsEngine:
         # gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
 
         if self._video_player:
-            self._draw_video()
+            if self._video_player.source:
+                self._draw_video()
         elif self._bg:
             self._draw_background()
 
-        if self._keyboard:
-            self._draw_keyboard()
+        if _window.state == GAME_STATE.GAME_PLAYING or _window.state == GAME_STATE.GAME_PAUSED:
+            if self._keyboard:
+                self._draw_keyboard()
 
         self._draw_fx()
 
@@ -515,6 +543,7 @@ class GraphicsEngine:
         self._bg.draw(_window.width//2, _window.height//2, self._bg.width*scale, self._bg.height*scale)
 
     def start_video(self):
+        return
         if self._video:
             self._video_player = pyglet.media.Player()
             self._video_player.queue(self._video)
@@ -526,6 +555,7 @@ class GraphicsEngine:
         frame_stream = GraphicsEngine.BytesIO()
         a.save(filename=f'{str(hash(GraphicsEngine.randint))[:10]}.png', file=frame_stream, encoder=None)
         # frame = arcade.Image.open(frame_stream)
+        # noinspection PyTypeChecker
         bg = arcade.load_texture(file_name=frame_stream)
         bg.draw(_window.width//2, _window.height//2, bg.width, bg.height)
 
@@ -569,7 +599,7 @@ class GraphicsEngine:
                     except KeyError:
                         key.graphic = 0
 
-    def _register_fx(self, fxs: List[FX], hash = None):
+    def _register_fx(self, fxs: List[FX], hash=None):
         """ Add `fx` to to-draw stack """
         if hash is None:
             number = _time_engine.game_time + random()
@@ -578,13 +608,14 @@ class GraphicsEngine:
             self._fxs[hash] = fxs
 
     def remove_fx(self, *, fxs: List[FX] = None, hash=None):
-        # FIXME
         if hash is not None:
             try:
                 self._fxs.pop(hash)
             except KeyError:
-                pass
+                print('KeyError')
         else:
+            # FIXME
+            print('else')
             to_remove = []
             for k, v in self._fxs.items():
                 if v == fxs:
@@ -596,7 +627,8 @@ class GraphicsEngine:
 
     def _draw_fx(self):
         """ Draw fx that are on-going """
-        for fxs in [_ for _ in self._fxs.values()]:
+        copy = [_ for _ in self._fxs.values()]
+        for fxs in copy:
             try:
                 fxs[0].draw()
             except IndexError:
@@ -626,6 +658,9 @@ class GraphicsEngine:
             elapsed = kwargs.pop('elapsed', None)
             total = kwargs.pop('total', None)
 
+            if elapsed > total:
+                return
+
             arcade.draw_rectangle_filled(center_x, center_y,
                                          width * elapsed / total,
                                          height * elapsed / total,
@@ -642,6 +677,10 @@ class GraphicsEngine:
 
             elapsed = kwargs.pop('elapsed', None)
             total = kwargs.pop('total', None)
+
+            if elapsed > total:
+                print('elapsed > total')
+                return
 
             arcade.draw_rectangle_filled(center_x, center_y,
                                          width,
@@ -682,11 +721,17 @@ class GraphicsEngine:
 
     def _draw_total_accuracy(self):
         """ Draw total accuracy """
-        pass
+        if _score_manager:
+            ac = _score_manager.overall_accuracy
+            output = f"accuracy: {ac*100:.0f}%"
+            arcade.draw_text(output, 20, _window.height // 2 - 120, arcade.color.WHITE, 16)
 
     def _draw_overall_grade(self):
         """ Draw overall grade """
-        pass
+        if _score_manager:
+            grade = _score_manager.overall_grade
+            output = f"grade: {grade}"
+            arcade.draw_text(output, 20, _window.height // 2 - 90, arcade.color.WHITE, 16)
 
     def _draw_accuracy_bar(self):
         """ Draw accuracy bar """
@@ -701,8 +746,9 @@ class GraphicsEngine:
     def _draw_game_time(self):
         """  """
         time = _time_engine.game_time
-        output = f"time: {time:.3f}"
+        output = f"audio time: {time:.3f}"
         arcade.draw_text(output, 20, _window.height // 2 - 30, arcade.color.WHITE, 16)
+
 
 
 def get_relative_path(path: Path, relative_root: Path = Path().resolve()):
@@ -906,11 +952,20 @@ class Beatmap:
 
     def generate_hit_objects(self) -> List[HitObject]:
         """ Generate and return a list of processed hit_objects """
-        from random import choice, seed
+        from random import choice, seed, shuffle
         import key
+
         seed(round(sum(self._hit_times), 3))
+
+        def get_random(L: list, cache=[]):
+            if not cache:
+                shuffle(L)
+                cache.extend(L[:5])
+            return cache.pop(-1)
+
+
         hit_objects = [
-            HitObject(self, hit_time, choice(key.normal_keys), HitObject.TYPE.TAP)
+            HitObject(self, hit_time, get_random(key.normal_keys), HitObject.TYPE.TAP)
             for hit_time in self._hit_times
         ]
         return hit_objects
@@ -965,7 +1020,8 @@ class HitObject:
         '_press_times',
         '_grades',
         '_beatmap',
-        '_state'
+        '_state',
+        '_cache'
     )
 
     def __init__(self,
@@ -981,6 +1037,7 @@ class HitObject:
         self._beatmap = beatmap
         self._state = HitObject.STATE.INACTIVE
         self._grades = []
+        self._cache = 0
 
     def _filter_input(self,
                       time: Union[Iterable[float], float],
@@ -1035,6 +1092,14 @@ class HitObject:
         """ Return list of times in relation to game_time (seconds)
         object needs to be interacted with by the player. """
         return self._reach_times
+
+    def get_reach_time(self) -> float:
+        """  """
+        try:
+            self._cache += 1
+            return self._reach_times[self._cache-1]
+        except IndexError:
+            pass
 
     @property
     def reach_times_ms(self) -> List[int]:
@@ -1158,6 +1223,13 @@ class HitObjectManager:
                 self._incoming.remove(elem)
             self._sent.extend(send)
 
+    def _change_stack_and_remove_fx(self, hit_object: HitObject):
+        for elem in self._sent.copy():
+            if elem == hit_object:
+                self._sent.remove(hit_object)
+                self._passed.append(hit_object)
+                _graphics_engine.remove_fx(hash=hit_object)
+
     def on_key_press(self, symbol: int, modifiers: int):
         try:
             key = self._keys[symbol]
@@ -1176,9 +1248,10 @@ class HitObjectManager:
                 time = _time_engine.game_time
                 hit_object.press(time)
                 _score_manager.register_hit(hit_object, time, hit_object.type)
+                assert hit_object.state == HitObject.STATE.PASSED
                 if hit_object.state == HitObject.STATE.PASSED:
-                    key.remove_hit_object()
                     _graphics_engine.remove_fx(hash=hit_object)
+                    key.remove_hit_object()
             except TimeoutError:
                 self._change_stack_and_remove_fx(hit_object)
                 key.remove_hit_object()
@@ -1193,17 +1266,11 @@ class HitObjectManager:
             try:
                 key.hit_object.press(_time_engine.game_time)
             except TimeoutError:
+                assert False, 'Dont reach this'
                 self._change_stack_and_remove_fx(key.hit_object)
                 key.remove_hit_object()
             except AttributeError:
                 pass
-
-    def _change_stack_and_remove_fx(self, hit_object: HitObject):
-        for elem in self._sent.copy():
-            if elem == hit_object:
-                self._sent.remove(hit_object)
-                self._passed.append(hit_object)
-                _graphics_engine.remove_fx(hash=hit_object)
 
 
 class BaseShape:
@@ -1459,6 +1526,7 @@ class UIManger:
         pass
 
     def on_mouse_release(self, x: float, y: float, button: int, modifiers: int):
+        return
         for pressable in self._pressed:
             pressable.release()
         _graphics_engine.mouse.set_state(MOUSE_STATE.IDLE)
@@ -1469,8 +1537,6 @@ class UIManger:
 
 class Game:
     """ """
-    from constants import GameState as State, GAME_STATE as STATE
-
     def __init__(self, width, height, song: str, difficulty: str):
         """ """
         global _score_manager, _hit_object_manager, _UI_manager
@@ -1497,16 +1563,19 @@ class Game:
         _graphics_engine.set_keyboard(self._keyboard)
 
         self._update_rate = 1/60
-        self._state = Game.STATE.GAME_PAUSED
-
-        self.window = _window
+        _window.set_state(GAME_STATE.GAME_PAUSED)
+        assert _window.state == GAME_STATE.GAME_PAUSED
 
     def start(self):
         """ Start the game """
-        self._state = Game.STATE.GAME_PLAYING
+        _window.set_state(GAME_STATE.GAME_PLAYING)
         self._audio_engine.song.play()
         self._graphics_engine.start_video()
         self._time_engine.start()
+
+    def finish(self):
+        """ Stop the game """
+        _window.set_state(GAME_STATE.GAME_FINISH)
 
     def pause(self):
         """ Pause the game """
@@ -1515,6 +1584,9 @@ class Game:
     def update(self, delta_time: float):
         self._hit_object_manager.update()
         self._graphics_engine.update()
+        if not self._audio_engine.song.playing:
+            if _window.state == GAME_STATE.GAME_PLAYING:
+                self.finish()
 
     def on_update(self, delta_time: float):
         pass
@@ -1524,16 +1596,12 @@ class Game:
         self._time_engine.tick()
         self._graphics_engine.on_draw()
 
-        time = self._audio_engine.song.time
-        output = f"audio time: {time:.3f}"
-        arcade.draw_text(output, 20, _window.height // 2 - 90, arcade.color.WHITE, 16)
-
     def on_resize(self, width: float, height: float):
         pass
 
     def on_key_press(self, symbol: int, modifiers: int):
         if symbol == key_.P:
-            if self.state != Game.STATE.GAME_PLAYING:
+            if _window.state != GAME_STATE.GAME_PLAYING:
                 self.start()
         if symbol == key_.NUM_ADD:
             self._audio_engine.song.volume *= 2
@@ -1585,11 +1653,6 @@ class Game:
         assert isinstance(new_rate, float)
         self._update_rate = new_rate
 
-    @property
-    def state(self):
-        """ Return current state of the instance """
-        return self._state
-
     @staticmethod
     def get_beatmap_filepath(song: str, difficulty: str) -> Optional[Path]:
         """ Return the filepath to .osu file given the name and
@@ -1616,21 +1679,26 @@ def swap_codecs():
         decoders.append(temp)
 
 
+from constants import GAME_STATE, GameState
+
+
 class GameWindow(arcade.Window):
     def __init__(self):
         """ Create game window """
-        global _time_engine, _audio_engine, _graphics_engine
+        global _time_engine, _audio_engine, _graphics_engine, _window
         super().__init__(1920, 1080, "musicality",
                          fullscreen=False, resizable=True, update_rate=1/60)
         arcade.set_background_color(arcade.color.BLACK)
 
         swap_codecs()
 
+        _window = self
         _time_engine = TimeEngine()
         _audio_engine = AudioEngine()
         _graphics_engine = GraphicsEngine()
 
-        self.game = Game(1920, 1080, 'Sayonara no Yukue', 'Advanced')
+        self._state = GAME_STATE.MAIN_MENU
+        self.game = Game(1920, 1080, 'MONSTER', 'NORMAL')
 
     def update(self, delta_time: float):
         self.game.update(delta_time)
@@ -1666,9 +1734,13 @@ class GameWindow(arcade.Window):
     def on_mouse_scroll(self, x: int, y: int, scroll_x: int, scroll_y: int):
         self.game.on_mouse_scroll(x, y, scroll_x, scroll_y)
 
+    @property
     def state(self):
         """ Return current state of the instance """
-        return self.game.state
+        return self._state
+
+    def set_state(self, state: GameState):
+        self._state = state
 
 
 def main():
