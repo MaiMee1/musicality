@@ -310,15 +310,65 @@ class UIElement:
 
     def press(self):
         """ Handle pressing event """
-        pass
+        print('press', self)
 
     def release(self):
         """ Handle releasing event """
-        pass
+        print('release', self)
 
     def is_inside(self, x: float, y: float) -> bool:
         """ Return True if point (x, y) is inside, False otherwise """
         return self._base_shape.is_inside(x, y)
+
+    @property
+    def mouse_sprite_hover(self) -> None:
+        return
+
+    @property
+    def mouse_sprite_press(self) -> None:
+        return
+
+
+class DrawableRectangle(RectangleBase):
+
+    def __init__(self, center_x: float, center_y: float, width: float, height: float,
+                 color: arcade.Color = arcade.color.BLACK, alpha: int = 255, **kwargs):
+        super().__init__(center_x, center_y, width, height)
+
+        self.border_width = kwargs.pop('border_width', 1)  # type: float
+        self.tilt_angle = kwargs.pop('tilt_angle', 0)  # type: float
+        self.filled = kwargs.pop('filled', True)  # type: float
+
+        self.color = color
+        self.alpha = alpha
+
+        self.shape = None
+        self.change_resolved = False
+        self.recreate()
+
+    def __str__(self):
+        return f"size: {self.size} posn: {self._position}"
+
+    def _get_opacity(self) -> float:
+        return round(self.alpha / 255, 1)
+
+    def _set_opacity(self, new_value: float):
+        self.alpha = int(round(new_value * 255, 0))
+
+    opacity = property(_get_opacity, _set_opacity)
+
+    @property
+    def rgba(self) -> arcade.Color:
+        return self.color[0], self.color[1], self.color[2], self.alpha
+
+    def draw(self):
+        self.shape.draw()
+
+    def recreate(self):
+        self.shape = arcade.create_rectangle(
+            self.center_x, self.center_y, self.width, self.height, self.rgba,
+            self.border_width, self.tilt_angle, self.filled
+        )
 
 
 class UIManger:
@@ -333,7 +383,7 @@ class UIManger:
 
     def on_mouse_motion(self, x: float, y: float, dx: float, dy: float):
         for interactable in self._interactable:
-            if interactable.inside(x, y):
+            if interactable.is_inside(x, y):
                 _graphics_engine.mouse.set_state(MOUSE_STATE.HOVER)
                 if interactable.mouse_sprite_hover:
                     _graphics_engine.mouse.set_graphic(interactable.get_mouse_sprite(MOUSE_STATE.HOVER))
@@ -341,7 +391,7 @@ class UIManger:
 
     def on_mouse_press(self, x: float, y: float, button: int, modifiers: int):
         for pressable in self._pressable:
-            if pressable.inside(x, y):
+            if pressable.is_inside(x, y):
                 pressable.press()
                 _graphics_engine.mouse.set_state(MOUSE_STATE.PRESS)
                 if pressable.mouse_sprite_press:
@@ -360,13 +410,23 @@ class UIManger:
         pass
 
     def create_songs(self):
-        pass
+        position = (0, 0)
+        size = (600, 100)
+        rec_drawable = arcade.Sprite(filename=Path('resources/song_information_sprite.jpg'))
+        rec_drawable.alpha = 200
+        rec_shape = RectangleBase(*position, *size)
+        elem = UIElement(rec_shape, rec_drawable)
+        elem.position = (_window.width-size[0]//2, 400)
+        _graphics_engine.add_element(elem)
+        self._interactable.append(elem)
+        self._pressable.append(elem)
 
 
 class GraphicsEngine:
     """ Manages graphical effects and background/video """
     def __init__(self):
         self._mouse = Mouse()
+        self._elements = []
 
     @property
     def mouse(self) -> Mouse:
@@ -389,8 +449,17 @@ class GraphicsEngine:
         assert _window.state == GAME_STATE.SONG_SELECT
 
         self._draw_fps()
+        self._draw_UI()
 
         self._draw_pointer()
+
+    def add_element(self, *UI_elements: UIElement):
+        for elem in UI_elements:
+            assert isinstance(elem, UIElement)
+        self._elements.extend(UI_elements)
+
+    def draw_sprite(self, element: UIElement):
+        element._sprite.draw()
 
     def _draw_background(self):
         pass
@@ -404,6 +473,11 @@ class GraphicsEngine:
         fps = _time_engine.fps
         output = f"FPS: {fps:.1f}"
         arcade.draw_text(output, 20, _window.height // 2, arcade.color.WHITE, 16)
+
+    def _draw_UI(self):
+        """ """
+        for elem in self._elements:
+            elem.draw()
 
 
 class SongSelect:
