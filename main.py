@@ -678,6 +678,9 @@ class Game:
         if symbol == key_.P:
             if _window.state != GAME_STATE.GAME_PLAYING:
                 self.start()
+        if symbol == key_.ESCAPE:
+            if _window.state in (GAME_STATE.GAME_PLAYING, GAME_STATE.GAME_PAUSED, GAME_STATE.GAME_FINISH):
+                _window.set_state(GAME_STATE.SONG_SELECT)
         if symbol == key_.NUM_ADD:
             self._audio_engine.song.volume *= 2
         if symbol == key_.NUM_SUBTRACT:
@@ -769,8 +772,9 @@ class GameWindow(arcade.Window):
         _audio_engine = AudioEngine()
         _graphics_engine = GraphicsEngine()
 
-        self._state = GAME_STATE.MAIN_MENU
+        self._state = GAME_STATE.SONG_SELECT
         self.song_select = SongSelect(self)
+        _window.set_state(GAME_STATE.SONG_SELECT)
         # self._state = GAME_STATE.GAME_PAUSED
         # self.game = Game(1920, 1080, 'MONSTER', 'NORMAL')
 
@@ -823,6 +827,8 @@ class GameWindow(arcade.Window):
             assert song is not None
             assert difficulty is not None
             self.handler = self.game = Game(1920, 1080, song, difficulty)
+        if state == GAME_STATE.SONG_SELECT:
+            self.handler = self.song_select
 
 
 def main():

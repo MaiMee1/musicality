@@ -338,6 +338,9 @@ class Beatmap:
                 i += 1
                 current_line = f.readline()
 
+    def __str__(self):
+        return self._filepath.name[:-4]
+
     @property
     def resource_loader(self):
         """ Return resource loader of folder of beatmap file """

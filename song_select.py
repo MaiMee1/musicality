@@ -11,7 +11,9 @@ import pyglet
 
 from constants import MouseState, MOUSE_STATE, UIElementState, UI_ELEMENT_STATE, GAME_STATE
 import key as key_
-from audio import AudioEngine
+from audio import AudioEngine, Beatmap
+
+SCROLL_SPEED = 20
 
 _window = None  # type: Optional[arcade.Window]
 
@@ -238,7 +240,7 @@ class CircleBase(BaseShape):
 class UIElement:
     """ Represents UI element """
 
-    __slots__ = '_base_shape', '_sprite', '_state'
+    __slots__ = '_base_shape', '_sprite', '_state', '_to_draw', 'cache', 'link'
 
     def __init__(self, shape: RectangleBase, sprite: arcade.Sprite,
                  starting_state: UIElementState = UI_ELEMENT_STATE.ACTIVE):
@@ -248,6 +250,17 @@ class UIElement:
         self._sprite = sprite
 
         self._state = starting_state
+        self._to_draw = []
+
+        self.cache = []
+        self.link = None
+
+    def add_to_draw(self, drawable):
+        self._to_draw.append(drawable)
+
+    def draw_text(self):
+        text, start_x, start_y, color, font_size = self.cache
+        arcade.draw_text(text, start_x, self.position[1]-font_size//2, color, font_size)
 
     @property
     def position(self) -> (float, float):
@@ -299,6 +312,9 @@ class UIElement:
     def draw(self):
         """ Draw the element """
         _graphics_engine.draw_sprite(self)
+        self.draw_text()
+        for elem in self._to_draw:
+            elem.draw()
 
     def get_mouse_sprite(self, state: MouseState) -> Optional[arcade.Sprite]:
         """ Return a sprite for the mouse if any """
@@ -310,7 +326,8 @@ class UIElement:
 
     def press(self):
         """ Handle pressing event """
-        print('press', self)
+        song, difficulty = self.link
+        _window.set_state(GAME_STATE.GAME_PAUSED, song=song, difficulty=difficulty)
 
     def release(self):
         """ Handle releasing event """
@@ -407,19 +424,68 @@ class UIManger:
         _graphics_engine.mouse.set_state(MOUSE_STATE.IDLE)
 
     def on_mouse_scroll(self, x: int, y: int, scroll_x: int, scroll_y: int):
-        pass
+        for pressable in self._pressable:
+            pressable.position = pressable.position[0], pressable.position[1] + scroll_y*SCROLL_SPEED
 
     def create_songs(self):
-        position = (0, 0)
-        size = (600, 100)
-        rec_drawable = arcade.Sprite(filename=Path('resources/song_information_sprite.jpg'))
-        rec_drawable.alpha = 200
-        rec_shape = RectangleBase(*position, *size)
-        elem = UIElement(rec_shape, rec_drawable)
-        elem.position = (_window.width-size[0]//2, 400)
-        _graphics_engine.add_element(elem)
-        self._interactable.append(elem)
-        self._pressable.append(elem)
+        i = 0
+        for beatmap, v in self.get_beatmap_info().items():
+            i += 1
+            artist, song_name, difficulty, creator = v
+
+            position = (0, 0)
+            size = (600, 100)
+            rec_drawable = arcade.Sprite(filename=Path('resources/song_information_sprite.jpg'))
+            rec_drawable.alpha = 255
+            rec_shape = RectangleBase(*position, *size)
+            elem = UIElement(rec_shape, rec_drawable)
+            elem.position = (_window.width-size[0]//2, 80*i)
+
+            elem.link = song_name, difficulty
+
+            text: str = f"{artist} - {song_name} [{difficulty}]"
+            start_x = elem.left + 20
+            start_y = elem.position[1]
+            color = arcade.color.WHITE
+            font_size = 16
+
+            elem.cache = (text, start_x, start_y, color, font_size)
+
+            _graphics_engine.add_element(elem)
+            self._interactable.append(elem)
+            self._pressable.append(elem)
+
+    def get_beatmap_info(self):
+        d = {}
+        folders = Path('resources/Songs').glob("*")
+        for files in [folder.rglob('*.osu') for folder in folders]:
+            for file in files:
+                name = file.name[:-4]
+                artist = name.split(' - ')[0]
+                temp = name.split(' - ')[1]
+                difficulty = name.split(') [')[-1][:-1]
+                temp = temp.split('(')[-1]
+                creator = temp.split(') [')[0]
+                temp = name.split(' - ')[1]
+                song_name = temp.split(' (')[0]
+                beatmap = Beatmap(file)
+                d[beatmap] = artist, song_name, difficulty, creator
+        return d
+
+    @staticmethod
+    def get_beatmap_filepath(song: str, difficulty: str) -> Optional[Path]:
+        """ Return the filepath to .osu file given the name and
+        difficulty of the song. """
+        songs = Path('resources/Songs').rglob(f'*{song}*')
+        try:
+            for song in songs:
+                if difficulty == '*' and song.suffix == '.osu':
+                    return song
+                if difficulty in song.name and song.suffix == '.osu':
+                    return song
+        except StopIteration:
+            return
+        return
 
 
 class GraphicsEngine:
@@ -485,16 +551,14 @@ class SongSelect:
     def __init__(self, window):
         """ """
         global _window, _time_engine, _audio_engine, _graphics_engine, _UI_manager
+        self._window = _window = window
+        assert _window.state == GAME_STATE.SONG_SELECT
 
         self._time_engine = _time_engine = TimeEngine()
         self._audio_engine = _audio_engine = AudioEngine()
         self._graphics_engine = _graphics_engine = GraphicsEngine()
 
         self._UI_manager = _UI_manager = UIManger()
-
-        self._window = _window = window
-        _window.set_state(GAME_STATE.SONG_SELECT)
-        assert _window.state == GAME_STATE.SONG_SELECT
 
         _UI_manager.create_songs()
 
