@@ -376,16 +376,25 @@ class ScoreManager:
         abs_dt = abs(accuracy)
         if abs_dt >= 1:
             return 'miss'
-        if abs_dt >= 0.67:
+        if abs_dt >= 0.5:
             return 'bad'
-        if abs_dt >= 0.33:
+        if abs_dt >= 0.3:
+            return 'ok'
+        if abs_dt >= 0.2:
             return 'good'
+        if abs_dt >= 0.1:
+            return 'almost'
         return 'perfect'
 
     def _calculate_score(self, grade: str, type: HitObject.Type):
+        combo_bonus = (self.combo // 10) * 80
         if grade == 'perfect':
             return 300
+        if grade == 'almost':
+            return 300
         if grade == 'good':
+            return 200
+        if grade == 'ok':
             return 100
         if grade == 'bad':
             return 50
@@ -434,6 +443,11 @@ class ScoreManager:
     def current_accuracies(self) -> Iterable[float]:
         """ Returns current accuracies in accuracy """
         return self._accuracy_stack
+
+    @property
+    def current_accuracy(self) -> Iterable[float]:
+        """ Returns instantaneous accuracy in accuracy """
+        raise NotImplementedError
 
 
 class FX:
@@ -1682,6 +1696,89 @@ def swap_codecs():
 from constants import GAME_STATE, GameState
 
 
+class SongSelect:
+    """ """
+    def __init__(self):
+        """ """
+        self._time_engine = _time_engine
+        self._audio_engine = _audio_engine
+        self._graphics_engine = _graphics_engine
+
+        _window.set_state(GAME_STATE.MAIN_MENU)
+        assert _window.state == GAME_STATE.MAIN_MENU
+
+    def update(self, delta_time: float):
+        pass
+
+    def on_update(self, delta_time: float):
+        pass
+
+    def on_draw(self):
+        """ This is called during the idle time when it should be called """
+        pass
+        self._time_engine.tick()
+        self._graphics_engine.on_draw()
+
+    def on_resize(self, width: float, height: float):
+        pass
+
+    def on_key_press(self, symbol: int, modifiers: int):
+        pass
+        if symbol == key_.NUM_ADD:
+            self._audio_engine.song.volume *= 2
+        if symbol == key_.NUM_SUBTRACT:
+            self._audio_engine.song.volume *= 0.5
+        if symbol == 99 and modifiers & 1 and modifiers & 2:
+            # CTRL + SHIFT + C to close, for fullscreen emergency
+            # TODO: Find a good way to exit
+            pyglet.app.exit()
+
+    def on_key_release(self, symbol: int, modifiers: int):
+        pass
+
+    def on_mouse_motion(self, x: float, y: float, dx: float, dy: float):
+        _UI_manager.on_mouse_motion(x, y, dx, dy)
+
+    def on_mouse_press(self, x: float, y: float, button: int, modifiers: int):
+        _UI_manager.on_mouse_press(x, y, button, modifiers)
+
+    def on_mouse_drag(self, x: float, y: float, dx: float, dy: float,
+                      buttons: int, modifiers: int):
+        _UI_manager.on_mouse_drag(x, y, dx, dy, buttons, modifiers)
+
+    def on_mouse_release(self, x: float, y: float, button: int, modifiers: int):
+        _UI_manager.on_mouse_release(x, y, button, modifiers)
+
+    def on_mouse_scroll(self, x: int, y: int, scroll_x: int, scroll_y: int):
+        _UI_manager.on_mouse_scroll(x, y, scroll_x, scroll_y)
+
+    @property
+    def update_rate(self):
+        """ Return the update rate (ideal FPS) """
+        return self._update_rate
+
+    @update_rate.setter
+    def update_rate(self, new_rate: float):
+        """ Set the update rate (ideal FPS) """
+        assert isinstance(new_rate, float)
+        self._update_rate = new_rate
+
+    @staticmethod
+    def get_beatmap_filepath(song: str, difficulty: str) -> Optional[Path]:
+        """ Return the filepath to .osu file given the name and
+        difficulty of the song. """
+        songs = Path('resources/Songs').rglob(f'*{song}*')
+        try:
+            for song in songs:
+                if difficulty == '*' and song.suffix == '.osu':
+                    return song
+                if difficulty in song.name and song.suffix == '.osu':
+                    return song
+        except StopIteration:
+            return
+        return
+
+
 class GameWindow(arcade.Window):
     def __init__(self):
         """ Create game window """
@@ -1698,6 +1795,7 @@ class GameWindow(arcade.Window):
         _graphics_engine = GraphicsEngine()
 
         self._state = GAME_STATE.MAIN_MENU
+        self.song_select = SongSelect()
         self.game = Game(1920, 1080, 'MONSTER', 'NORMAL')
 
     def update(self, delta_time: float):
@@ -1739,8 +1837,10 @@ class GameWindow(arcade.Window):
         """ Return current state of the instance """
         return self._state
 
-    def set_state(self, state: GameState):
+    def set_state(self, state: GameState, *args):
         self._state = state
+        if state == GAME_STATE.GAME_PAUSED:
+            pass
 
 
 def main():
