@@ -528,26 +528,29 @@ class GraphicsEngine:
         # gl.glMatrixMode(gl.GL_MODELVIEW)
         # gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
 
-        if self._video_player:
-            if self._video_player.source:
-                self._draw_video()
-        elif self._bg:
-            self._draw_background()
+        if _window.state in (GAME_STATE.GAME_PAUSED, GAME_STATE.GAME_PLAYING, GAME_STATE.GAME_FINISH):
 
-        if _window.state == GAME_STATE.GAME_PLAYING or _window.state == GAME_STATE.GAME_PAUSED:
-            if self._keyboard:
-                self._draw_keyboard()
+            if self._video_player:
+                if self._video_player.source:
+                    self._draw_video()
+            elif self._bg:
+                self._draw_background()
 
-        self._draw_fx()
+            if _window.state == GAME_STATE.GAME_PLAYING or _window.state == GAME_STATE.GAME_PAUSED:
+                if self._keyboard:
+                    self._draw_keyboard()
 
-        self._draw_clock()
-        self._draw_combo()
-        self._draw_score()
-        self._draw_total_accuracy()
-        self._draw_overall_grade()
-        self._draw_accuracy_bar()
+            self._draw_fx()
 
-        self._draw_game_time()
+            self._draw_clock()
+            self._draw_combo()
+            self._draw_score()
+            self._draw_total_accuracy()
+            self._draw_overall_grade()
+            self._draw_accuracy_bar()
+
+            self._draw_game_time()
+
         self._draw_fps()
 
         self._draw_pointer()
@@ -762,7 +765,6 @@ class GraphicsEngine:
         time = _time_engine.game_time
         output = f"audio time: {time:.3f}"
         arcade.draw_text(output, 20, _window.height // 2 - 30, arcade.color.WHITE, 16)
-
 
 
 def get_relative_path(path: Path, relative_root: Path = Path().resolve()):
@@ -1700,12 +1702,10 @@ class SongSelect:
     """ """
     def __init__(self):
         """ """
-        self._time_engine = _time_engine
-        self._audio_engine = _audio_engine
-        self._graphics_engine = _graphics_engine
-
         _window.set_state(GAME_STATE.MAIN_MENU)
         assert _window.state == GAME_STATE.MAIN_MENU
+
+
 
     def update(self, delta_time: float):
         pass
@@ -1715,9 +1715,8 @@ class SongSelect:
 
     def on_draw(self):
         """ This is called during the idle time when it should be called """
-        pass
-        self._time_engine.tick()
-        self._graphics_engine.on_draw()
+        _time_engine.tick()
+        _graphics_engine.on_draw()
 
     def on_resize(self, width: float, height: float):
         pass
@@ -1796,51 +1795,57 @@ class GameWindow(arcade.Window):
 
         self._state = GAME_STATE.MAIN_MENU
         self.song_select = SongSelect()
-        self.game = Game(1920, 1080, 'MONSTER', 'NORMAL')
+        # self.game = Game(1920, 1080, 'MONSTER', 'NORMAL')
+
+        self.handler = self.song_select
 
     def update(self, delta_time: float):
-        self.game.update(delta_time)
+        self.handler.update(delta_time)
 
     def on_update(self, delta_time: float):
-        self.game.on_update(delta_time)
+        self.handler.on_update(delta_time)
 
     def on_draw(self):
-        self.game.on_draw()
+        self.handler.on_draw()
 
     def on_resize(self, width: float, height: float):
-        self.game.on_resize(width, height)
+        self.handler.on_resize(width, height)
 
     def on_mouse_motion(self, x: float, y: float, dx: float, dy: float):
-        self.game.on_mouse_motion(x, y, dx, dy)
+        self.handler.on_mouse_motion(x, y, dx, dy)
 
     def on_key_press(self, symbol: int, modifiers: int):
-        self.game.on_key_press(symbol, modifiers)
+        self.handler.on_key_press(symbol, modifiers)
 
     def on_key_release(self, symbol: int, modifiers: int):
-        self.game.on_key_release(symbol, modifiers)
+        self.handler.on_key_release(symbol, modifiers)
 
     def on_mouse_press(self, x: float, y: float, button: int, modifiers: int):
-        self.game.on_mouse_press(x, y, button, modifiers)
+        self.handler.on_mouse_press(x, y, button, modifiers)
 
     def on_mouse_drag(self, x: float, y: float, dx: float, dy: float,
                       buttons: int, modifiers: int):
-        self.game.on_mouse_drag(x, y, dx, dy, buttons, modifiers)
+        self.handler.on_mouse_drag(x, y, dx, dy, buttons, modifiers)
 
     def on_mouse_release(self, x: float, y: float, button: int, modifiers: int):
-        self.game.on_mouse_release(x, y, button, modifiers)
+        self.handler.on_mouse_release(x, y, button, modifiers)
 
     def on_mouse_scroll(self, x: int, y: int, scroll_x: int, scroll_y: int):
-        self.game.on_mouse_scroll(x, y, scroll_x, scroll_y)
+        self.handler.on_mouse_scroll(x, y, scroll_x, scroll_y)
 
     @property
     def state(self):
         """ Return current state of the instance """
         return self._state
 
-    def set_state(self, state: GameState, *args):
+    def set_state(self, state: GameState, **kwargs):
         self._state = state
         if state == GAME_STATE.GAME_PAUSED:
-            pass
+            song = kwargs.pop('song', None)
+            difficulty = kwargs.pop('difficulty', None)
+            assert song is not None
+            assert difficulty is not None
+            self.handler = self.game = Game(1920, 1080, song, difficulty)
 
 
 def main():
