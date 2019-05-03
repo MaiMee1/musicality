@@ -9,8 +9,9 @@ from random import random
 import arcade
 import pyglet
 
-
 from constants import MouseState, MOUSE_STATE, UIElementState, UI_ELEMENT_STATE, GAME_STATE
+import key as key_
+from audio import AudioEngine
 
 _window = None  # type: Optional[arcade.Window]
 
@@ -18,9 +19,81 @@ _time_engine = None  # type: Optional[TimeEngine]
 _audio_engine = None  # type: Optional[AudioEngine]
 _graphics_engine = None  # type: Optional[GraphicsEngine]
 
-_score_manager = None  # type: Optional[ScoreManager]
-_hit_object_manager = None  # type: Optional[HitObjectManager]
 _UI_manager = None  # type: Optional[UIManger]
+
+
+class TimeEngine:
+    """ Manages time """
+
+    __slots__ = 'time', '_frame_times', '_t', '_start_time', '_dt', '_start', '_absolute_time'
+
+    def __init__(self, maxlen: int = 60):
+        import time
+        import collections
+        self.time = time.perf_counter
+        self._frame_times = collections.deque(maxlen=maxlen)
+        # Ensure that deque is not empty and sum() != 0
+        self._t = self._start_time = self._absolute_time = self.time()
+        self._dt = 0
+        self.tick()
+        self._start = False
+
+    def tick(self):
+        """ Call to signify one frame passing """
+        t = self.time()
+        self._dt = dt = t - self._t
+        self._t = t
+        self._frame_times.append(dt)
+
+    def start(self):
+        """ Start the clock """
+        self._start = True
+        self._start_time = self.time()
+
+    def reset(self):
+        """ Restart the clock """
+        self._start_time = self.time()
+
+    @property
+    def fps(self) -> float:
+        """ Return current average fps """
+        try:
+            return len(self._frame_times) / sum(self._frame_times)
+        except ZeroDivisionError:
+            return 0
+
+    @property
+    def play_time(self) -> float:
+        """ Return current time at function call in seconds """
+        return self.time() - self._absolute_time
+
+    @property
+    def dt(self) -> float:
+        """ Return time difference of this and last frame in seconds """
+        return self._dt
+
+
+class Mouse:
+    def __init__(self):
+        self._state = MOUSE_STATE.IDLE
+        self._sprite = self.get_default_mouse_sprite()
+
+    def get_default_mouse_sprite(self) -> arcade.Sprite:
+        pass
+
+    def draw(self):
+        self._sprite.draw()
+
+    @property
+    def state(self):
+        return self._state
+
+    def set_state(self, state: MouseState):
+        assert state in MOUSE_STATE
+        self._state = state
+
+    def set_graphic(self, sprite: arcade.Sprite):
+        self._sprite = sprite
 
 
 class BaseShape:
@@ -255,6 +328,9 @@ class UIManger:
         self._pressable = self._clikable = []  # clikable not implemented
         self._pressed = []
 
+    def update(self, delta_time: float):
+        pass
+
     def on_mouse_motion(self, x: float, y: float, dx: float, dy: float):
         for interactable in self._interactable:
             if interactable.inside(x, y):
@@ -276,7 +352,6 @@ class UIManger:
         pass
 
     def on_mouse_release(self, x: float, y: float, button: int, modifiers: int):
-        return
         for pressable in self._pressed:
             pressable.release()
         _graphics_engine.mouse.set_state(MOUSE_STATE.IDLE)
@@ -284,11 +359,18 @@ class UIManger:
     def on_mouse_scroll(self, x: int, y: int, scroll_x: int, scroll_y: int):
         pass
 
+    def create_songs(self):
+        pass
+
 
 class GraphicsEngine:
     """ Manages graphical effects and background/video """
     def __init__(self):
-        pass
+        self._mouse = Mouse()
+
+    @property
+    def mouse(self) -> Mouse:
+        return self._mouse
 
     def update(self):
         """ Update graphics to match current data """
@@ -326,13 +408,24 @@ class GraphicsEngine:
 
 class SongSelect:
     """ """
-    def __init__(self):
+    def __init__(self, window):
         """ """
-        _window.set_state(GAME_STATE.MAIN_MENU)
-        assert _window.state == GAME_STATE.MAIN_MENU
+        global _window, _time_engine, _audio_engine, _graphics_engine, _UI_manager
+
+        self._time_engine = _time_engine = TimeEngine()
+        self._audio_engine = _audio_engine = AudioEngine()
+        self._graphics_engine = _graphics_engine = GraphicsEngine()
+
+        self._UI_manager = _UI_manager = UIManger()
+
+        self._window = _window = window
+        _window.set_state(GAME_STATE.SONG_SELECT)
+        assert _window.state == GAME_STATE.SONG_SELECT
+
+        _UI_manager.create_songs()
 
     def update(self, delta_time: float):
-        pass
+        _UI_manager.update(delta_time)
 
     def on_update(self, delta_time: float):
         pass
@@ -348,9 +441,9 @@ class SongSelect:
     def on_key_press(self, symbol: int, modifiers: int):
         pass
         if symbol == key_.NUM_ADD:
-            self._audio_engine.song.volume *= 2
+            _audio_engine.song.volume *= 2
         if symbol == key_.NUM_SUBTRACT:
-            self._audio_engine.song.volume *= 0.5
+            _audio_engine.song.volume *= 0.5
         if symbol == 99 and modifiers & 1 and modifiers & 2:
             # CTRL + SHIFT + C to close, for fullscreen emergency
             # TODO: Find a good way to exit
@@ -374,17 +467,6 @@ class SongSelect:
 
     def on_mouse_scroll(self, x: int, y: int, scroll_x: int, scroll_y: int):
         _UI_manager.on_mouse_scroll(x, y, scroll_x, scroll_y)
-
-    @property
-    def update_rate(self):
-        """ Return the update rate (ideal FPS) """
-        return self._update_rate
-
-    @update_rate.setter
-    def update_rate(self, new_rate: float):
-        """ Set the update rate (ideal FPS) """
-        assert isinstance(new_rate, float)
-        self._update_rate = new_rate
 
     @staticmethod
     def get_beatmap_filepath(song: str, difficulty: str) -> Optional[Path]:

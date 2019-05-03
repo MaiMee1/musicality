@@ -409,7 +409,6 @@ class Beatmap:
                 cache.extend(L[:5])
             return cache.pop(-1)
 
-
         hit_objects = [
             HitObject(self, hit_time, get_random(key.normal_keys), HitObject.TYPE.TAP)
             for hit_time in self._hit_times

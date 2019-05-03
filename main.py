@@ -13,7 +13,8 @@ import key as key_
 from keyboard import Keyboard, Key
 import keyboard as keyboard_
 from type_ import *
-from constants import MouseState, MOUSE_STATE, UIElementState, UI_ELEMENT_STATE
+from constants import MouseState, MOUSE_STATE, UIElementState, UI_ELEMENT_STATE, GAME_STATE, GameState
+from song_select import SongSelect
 
 from audio import Beatmap, AudioEngine, HitObject
 # TODO how to play
@@ -1015,86 +1016,6 @@ def swap_codecs():
         decoders.append(temp)
 
 
-from constants import GAME_STATE, GameState
-
-
-class SongSelect:
-
-    def __init__(self):
-        _window.set_state(GAME_STATE.MAIN_MENU)
-        assert _window.state == GAME_STATE.MAIN_MENU
-
-    def update(self, delta_time: float):
-        pass
-
-    def on_update(self, delta_time: float):
-        pass
-
-    def on_draw(self):
-        """ This is called during the idle time when it should be called """
-        _time_engine.tick()
-        _graphics_engine.on_draw()
-
-    def on_resize(self, width: float, height: float):
-        pass
-
-    def on_key_press(self, symbol: int, modifiers: int):
-        pass
-        if symbol == key_.NUM_ADD:
-            self._audio_engine.song.volume *= 2
-        if symbol == key_.NUM_SUBTRACT:
-            self._audio_engine.song.volume *= 0.5
-        if symbol == 99 and modifiers & 1 and modifiers & 2:
-            # CTRL + SHIFT + C to close, for fullscreen emergency
-            # TODO: Find a good way to exit
-            pyglet.app.exit()
-
-    def on_key_release(self, symbol: int, modifiers: int):
-        pass
-
-    def on_mouse_motion(self, x: float, y: float, dx: float, dy: float):
-        _UI_manager.on_mouse_motion(x, y, dx, dy)
-
-    def on_mouse_press(self, x: float, y: float, button: int, modifiers: int):
-        _UI_manager.on_mouse_press(x, y, button, modifiers)
-
-    def on_mouse_drag(self, x: float, y: float, dx: float, dy: float,
-                      buttons: int, modifiers: int):
-        _UI_manager.on_mouse_drag(x, y, dx, dy, buttons, modifiers)
-
-    def on_mouse_release(self, x: float, y: float, button: int, modifiers: int):
-        _UI_manager.on_mouse_release(x, y, button, modifiers)
-
-    def on_mouse_scroll(self, x: int, y: int, scroll_x: int, scroll_y: int):
-        _UI_manager.on_mouse_scroll(x, y, scroll_x, scroll_y)
-
-    @property
-    def update_rate(self):
-        """ Return the update rate (ideal FPS) """
-        return self._update_rate
-
-    @update_rate.setter
-    def update_rate(self, new_rate: float):
-        """ Set the update rate (ideal FPS) """
-        assert isinstance(new_rate, float)
-        self._update_rate = new_rate
-
-    @staticmethod
-    def get_beatmap_filepath(song: str, difficulty: str) -> Optional[Path]:
-        """ Return the filepath to .osu file given the name and
-        difficulty of the song. """
-        songs = Path('resources/Songs').rglob(f'*{song}*')
-        try:
-            for song in songs:
-                if difficulty == '*' and song.suffix == '.osu':
-                    return song
-                if difficulty in song.name and song.suffix == '.osu':
-                    return song
-        except StopIteration:
-            return
-        return
-
-
 class GameWindow(arcade.Window):
     def __init__(self):
         """ Create game window """
@@ -1111,11 +1032,11 @@ class GameWindow(arcade.Window):
         _graphics_engine = GraphicsEngine()
 
         self._state = GAME_STATE.MAIN_MENU
-        # self.song_select = SongSelect()
-        self._state = GAME_STATE.GAME_PAUSED
-        self.game = Game(1920, 1080, 'MONSTER', 'NORMAL')
+        self.song_select = SongSelect(self)
+        # self._state = GAME_STATE.GAME_PAUSED
+        # self.game = Game(1920, 1080, 'MONSTER', 'NORMAL')
 
-        self.handler = self.game
+        self.handler = self.song_select
 
     def update(self, delta_time: float):
         self.handler.update(delta_time)
