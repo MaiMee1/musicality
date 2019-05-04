@@ -5,7 +5,7 @@ from typing import Iterable, Union, Optional, Dict
 
 import arcade
 
-from game.constants import UIElementState, UI_ELEMENT_STATE, MouseState, MOUSE_STATE
+from game.constants import MouseState, MOUSE_STATE
 
 
 class Drawable(ABC):
@@ -26,7 +26,8 @@ class Layer(Drawable):
 
     def __init__(self, elements: Iterable[Drawable], **kwargs):
         self.elements = list(elements)
-        self.name = kwargs.pop('name', f'Layer {Layer.number}')
+        name = kwargs.pop('name', 'Layer')
+        self.name = f'{name} {Layer.number}'
         Layer.number += 1
         self.z = kwargs.pop('z', Layer.last_z + 1)
         Layer.last_z = self.z
@@ -70,7 +71,8 @@ class Group(Drawable, Movable):
 
     def __init__(self, elements: Iterable, **kwargs):
         self.elements = list(elements)
-        self.name = kwargs.pop('name', f'Group {Group.number}')
+        name = kwargs.pop('name', f'Group')
+        self.name = f'{name} {Group.number}'
         Group.number += 1
         self._anchor = kwargs.pop('anchor', self.elements[0].position)
         self._ref = kwargs.pop('ref', None)
@@ -188,7 +190,7 @@ class Shape(ABC, Movable):
 
     @top.setter
     @abstractmethod
-    def top(self):
+    def top(self, new_value: float):
         pass
 
     @property
@@ -198,7 +200,7 @@ class Shape(ABC, Movable):
 
     @bottom.setter
     @abstractmethod
-    def bottom(self):
+    def bottom(self, new_value: float):
         pass
 
     @property
@@ -208,7 +210,7 @@ class Shape(ABC, Movable):
 
     @left.setter
     @abstractmethod
-    def left(self):
+    def left(self, new_value: float):
         pass
 
     @property
@@ -218,7 +220,7 @@ class Shape(ABC, Movable):
 
     @right.setter
     @abstractmethod
-    def right(self):
+    def right(self, new_value: float):
         pass
 
 
@@ -319,18 +321,21 @@ class Circle(Shape):
 
 class DrawableRectangle(Rectangle, Drawable):
 
-    def __init__(self, center_x: float, center_y: float, width: float, height: float,
-                 color: arcade.Color = arcade.color.BLACK, alpha: int = 255, **kwargs):
+    def __init__(self,
+                 center_x: float, center_y: float,
+                 width: float, height: float,
+                 color: arcade.Color = arcade.color.WHITE, alpha: int = 255,
+                 **kwargs):
         super().__init__(center_x, center_y, width, height)
 
-        self.border_width = kwargs.pop('border_width', 1)  # type: float
-        self.tilt_angle = kwargs.pop('tilt_angle', 0)  # type: float
-        self.filled = kwargs.pop('filled', True)  # type: float
+        self._border_width = kwargs.pop('border_width', 1)  # type: float
+        self._tilt_angle = kwargs.pop('tilt_angle', 0)  # type: float
+        self._filled = kwargs.pop('filled', True)  # type: float
 
-        self.color = color
-        self.alpha = alpha
+        self._color = color
+        self._alpha = alpha
 
-        self.shape = None
+        self._shape = None
         self.change_resolved = False
         self.recreate_vbo()
 
@@ -338,25 +343,57 @@ class DrawableRectangle(Rectangle, Drawable):
         return f"size: {self.size} posn: {self._position}"
 
     def _get_opacity(self) -> float:
-        return round(self.alpha / 255, 1)
+        return round(self._alpha / 255, 1)
 
     def _set_opacity(self, new_value: float):
-        self.alpha = int(round(new_value * 255, 0))
+        self._alpha = int(round(new_value * 255, 0))
 
     opacity = property(_get_opacity, _set_opacity)
 
     @property
-    def rgba(self) -> arcade.Color:
-        return self.color[0], self.color[1], self.color[2], self.alpha
+    def color(self) -> (int, int, int):
+        return self._color
+
+    @color.setter
+    def color(self, new_value: (int, int, int)):
+        r, g, b = new_value
+        assert isinstance(r, int)
+        assert isinstance(g, int)
+        assert isinstance(b, int)
+        self._color = new_value
+        self.change_resolved = False
+
+    @property
+    def alpha(self) -> int:
+        return self._alpha
+
+    @alpha.setter
+    def alpha(self, new_value: int):
+        assert isinstance(new_value, int)
+        assert 0 <= new_value <= 255
+        self._alpha = new_value
+        self.change_resolved = False
+
+    @property
+    def rgba(self) -> (int, int, int, int):
+        return self.color[0], self.color[1], self.color[2], self._alpha
 
     def draw(self):
-        self.shape.draw()
+        if not self.change_resolved:
+            self.recreate_vbo()
+        self._shape.draw()
+
+    def move(self, delta_x: float, delta_y: float):
+        self.center_x += delta_x
+        self.center_y += delta_y
+        self.change_resolved = False
 
     def recreate_vbo(self):
-        self.shape = arcade.create_rectangle(
+        self._shape = arcade.create_rectangle(
             self.center_x, self.center_y, self.width, self.height, self.rgba,
-            self.border_width, self.tilt_angle, self.filled
+            self._border_width, self._tilt_angle, self._filled
         )
+        self.change_resolved = True
 
 
 class Sprite(arcade.Sprite, Drawable, Movable):
@@ -368,7 +405,7 @@ class Sprite(arcade.Sprite, Drawable, Movable):
         Sprite.point_sprite.points = (x, y)
         return arcade.check_for_collision(self, Sprite.point_sprite)
 
-    def move(self, delta_x, delta_y):
+    def move(self, delta_x: float, delta_y: float):
         self.center_x += delta_x
         self.center_y += delta_y
 
@@ -493,17 +530,22 @@ class UIElement(Drawable, Movable):
             return self._custom_mouse[mouse_state]
         return None
 
+    @abstractmethod
     def on_hover(self):
         pass
 
+    @abstractmethod
     def on_focus(self):
         pass
 
+    @abstractmethod
     def on_out(self):
         pass
 
+    @abstractmethod
     def on_press(self):
         pass
 
+    @abstractmethod
     def on_release(self):
         pass

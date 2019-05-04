@@ -1,3 +1,3 @@
-from game.graphics.engine import GraphicsEngine
-from game.graphics.primitives import Layer, Group, Rectangle, Circle, DrawableRectangle, UIElement, Sprite
-from game.graphics.text import Text
+from .engine import GraphicsEngine
+from .primitives import Layer, Group, Rectangle, Circle, DrawableRectangle, UIElement, Sprite
+from .text import Text
