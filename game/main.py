@@ -1,22 +1,18 @@
 from __future__ import annotations
 
 from pathlib import Path
-from io import StringIO
-from typing import Any, Union, Optional, Tuple, List, Dict, NewType, TextIO, Iterable, Callable, Hashable
-import warnings
+from typing import Optional, List, Dict, Iterable
 from random import random
 
 import arcade
 import pyglet
 
-import key as key_
-from keyboard import Keyboard, Key
-import keyboard as keyboard_
-from type_ import *
-from constants import MouseState, MOUSE_STATE, UIElementState, UI_ELEMENT_STATE, GAME_STATE, GameState
-from song_select import SongSelect, UIManger
+from game.keyboard import Keyboard, Key
+from game import keyboard as keyboard_, key as key_
+from game.constants import GAME_STATE, GameState
+from game.song_select import SongSelect, UIManger
 
-from audio import Beatmap, AudioEngine, HitObject
+from game.audio import Beatmap, AudioEngine, HitObject
 # TODO how to play
 
 _window = None  # type: Optional[arcade.Window]
@@ -243,8 +239,6 @@ class FX:
 class GraphicsEngine:
     """ Manages graphical effects and background/video """
 
-    from io import BytesIO
-
     import arcade.color as COLOR
     from io import BytesIO
     from random import randint
@@ -345,14 +339,14 @@ class GraphicsEngine:
 
         if not keyboard.change_resolved:
             keyboard.shape = arcade.create_rectangle(
-                keyboard.center_x, keyboard.center_y, keyboard.width, keyboard.height, keyboard.rgba,
+                keyboard.anchor_x, keyboard.anchor_y, keyboard.width, keyboard.height, keyboard.rgba,
                 border_width=keyboard.border_width, tilt_angle=keyboard.tilt_angle, filled=keyboard.filled)
             keyboard.change_resolved = True
 
         for key in self._keyboard.keys.values():
             if not key.change_resolved:
                 key.shape = arcade.create_rectangle(
-                    key.center_x, key.center_y, key.width, key.height, key.rgba,
+                    key.anchor_x, key.anchor_y, key.width, key.height, key.rgba,
                     border_width=key.border_width, tilt_angle=key.tilt_angle, filled=key.filled)
                 key.change_resolved = True
 

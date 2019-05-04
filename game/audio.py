@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Union, Optional, Tuple, List, Dict, NewType, TextIO, Iterable, Callable, Hashable
+from typing import Any, Union, Optional, Tuple, List, Dict, TextIO, Iterable, Callable
 import warnings
 from io import StringIO
 
@@ -11,7 +11,7 @@ import pyglet
 class HitObject:
     """ Represents an Osu! HitObject """
 
-    from constants import HIT_OBJECT_TYPE as TYPE, HIT_OBJECT_STATE as STATE, \
+    from game.constants import HIT_OBJECT_TYPE as TYPE, HIT_OBJECT_STATE as STATE, \
         HitObjectType as Type, HitObjectState as State
 
     TYPE_NAME_MAP = {
@@ -227,7 +227,7 @@ class Beatmap:
         assert filepath.suffix == '.osu', 'only use this to open .osu files'
 
         # custom sample override
-        from constants import SAMPLE_NAMES
+        from game.constants import SAMPLE_NAMES
         wav_files = filepath.glob('*.wav')
         self._sample_filenames = [file.name for file in wav_files
                                   if file.name in (name + '.wav' for name in SAMPLE_NAMES)]
@@ -401,8 +401,8 @@ class Beatmap:
 
     def generate_hit_objects(self) -> List[HitObject]:
         """ Generate and return a list of processed hit_objects """
-        from random import choice, seed, shuffle
-        import key
+        from random import seed, shuffle
+        from game import key
 
         seed(round(sum(self._hit_times), 3))
 
@@ -442,71 +442,6 @@ class Beatmap:
     def AR(self) -> float:
         """ Return the approach rate of the instance """
         return self._difficulty['ApproachRate']
-
-
-# helper class
-class Time:
-    """ Represents time """
-
-    __slots__ = '_time'
-
-    def __init__(self, time: Union[str, int, float]):
-        """ Assume time is either (1) in seconds or (2) a string in the
-        correct format. """
-        try:
-            time > 0
-            # Doesn't raise error if time is a number
-            self._time = float(time)
-        except TypeError:
-            # Assume new_time is str
-            h_str, m_str, ms_str = 0, 0, 0
-            if '.' in time:
-                try:
-                    time, ms_str = time.split('.')
-                except ValueError:
-                    try:
-                        m_str, time, ms_str = time.split('.')
-                    except ValueError:
-                        h_str, m_str, time, ms_str = time.split('.')
-                    except:
-                        raise ValueError("invalid format for 'time'")
-            if ':' in time:
-                try:
-                    m_str, time = time.split(':')
-                except ValueError:
-                    h_str, m_str, time = time.split(':')
-                except:
-                    raise ValueError("invalid format for 'time'")
-            self._time = int(h_str) * 3600 + int(m_str) * 60 + int(time) + int(ms_str) / 1000
-            round(self._time, 10)
-
-    def __str__(self):
-        """ Return string in the format hh:mm:ss.ms """
-        ms = (self._time % 1) * 1000
-        s = self._time % 60
-        m = (self._time // 60) % 60
-        h = self._time // 3600
-        return f'{h:02.0f}:{m:02.0f}:{s:02.0f}.{ms:.0f}'
-
-    def __float__(self):
-        """ Return time in seconds """
-        return self._time
-
-    def __int__(self):
-        """ Return time in milliseconds """
-        return int(self._time * 1000)
-
-    def __add__(self, other: Union[str, int, float]) -> Time:
-        """ Allows other to be  """
-        if type(other) in (str, int):
-            other = Time(other)
-        return Time(float(self) + float(other))
-
-    def __sub__(self, other: Union[str, int, float]) -> Time:
-        """  """
-        if type(other) in (str, int):
-            other = Time(other)
-        return Time(float(self) - float(other))
 
 
 # helper class
@@ -623,29 +558,26 @@ class Audio:
 
 
 class AudioEngine:
-    """ Manages audio """
+    """ Manages audio requires loading beatmap """
 
     __slots__ = '_beatmap', '_sample_sets', '_song', '_audios', '_players', '_default_loader'
 
-    from constants import SAMPLE_NAMES, HIT_SOUND_MAP, SAMPLE_SET
+    from game.constants import SAMPLE_NAMES, HIT_SOUND_MAP, SAMPLE_SET
 
     def __init__(self):
         self._sample_sets = []  # type: List[Dict[str, Audio]]
         self._default_loader = pyglet.resource.Loader(['resources/Default/sample', 'resources/Default'])
-        self._audios = []  # type: List[Audio]
 
     def load_beatmap(self, beatmap: Beatmap):
         """ Call this each game """
         self._beatmap = beatmap
         self._song = Audio(filename=beatmap.audio_filename, loader=beatmap.resource_loader)
-        self.register(self._song)
 
     def _generate_sample_set(self):
         d = {audio.name[:-4]: audio for audio in self._beatmap.generate_hit_sounds()}
         for name in AudioEngine.SAMPLE_NAMES:
             if name not in d:
                 audio = Audio(filename=(name + '.wav'), loader=self._default_loader)
-                self.register(audio)
                 d[name] = audio
         assert d != {}
         self._sample_sets.append(d)
@@ -656,10 +588,6 @@ class AudioEngine:
             pass
         audio = Audio(filepath=Path('resources/Default/sample/' + sample + '.wav'))
         return audio
-
-    def register(self, *audios: Audio):
-        """ Register the audio file the let audio engine handle it """
-        self._audios.extend(audios)
 
     def play_sound(self, hit_sound: int, sample_set: str):
         """ Play hit_sound according to code given """

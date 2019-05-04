@@ -1,0 +1,509 @@
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+from typing import Iterable, Union, Optional, Dict
+
+import arcade
+
+from game.constants import UIElementState, UI_ELEMENT_STATE, MouseState, MOUSE_STATE
+
+
+class Drawable(ABC):
+    """ Base class for graphical objects """
+
+    @abstractmethod
+    def draw(self):
+        """ Draw the graphical element """
+        pass
+
+
+class Layer(Drawable):
+
+    number = 0
+    last_z = 0
+
+    __slots__ = 'elements', 'name', 'z'
+
+    def __init__(self, elements: Iterable[Drawable], **kwargs):
+        self.elements = list(elements)
+        self.name = kwargs.pop('name', f'Layer {Layer.number}')
+        Layer.number += 1
+        self.z = kwargs.pop('z', Layer.last_z + 1)
+        Layer.last_z = self.z
+
+    def __str__(self):
+        if self.name:
+            return self.name
+
+    def draw(self):
+        """ Draw all elements in self """
+        try:
+            for elem in self.elements:
+                elem.draw()
+        except AttributeError as e:
+            e.args = (f'{elem} is not drawable',)
+            raise
+
+    def __iter__(self):
+        return self.elements
+
+    def remove(self, element: Drawable):
+        self.elements.remove(element)
+
+    def pop(self, index: int) -> Drawable:
+        return self.elements.pop(index)
+
+
+class Movable(ABC):
+
+    @abstractmethod
+    def move(self, delta_x: float, delta_y: float):
+        """ Move the object ny `delta_x` and `delta_y`"""
+        pass
+
+
+class Group(Drawable, Movable):
+
+    number = 0
+
+    __slots__ = 'elements', 'name', '_anchor', '_ref'
+
+    def __init__(self, elements: Iterable, **kwargs):
+        self.elements = list(elements)
+        self.name = kwargs.pop('name', f'Group {Group.number}')
+        Group.number += 1
+        self._anchor = kwargs.pop('anchor', self.elements[0].position)
+        self._ref = kwargs.pop('ref', None)
+
+    def __str__(self):
+        if self.name:
+            return self.name
+
+    def draw(self):
+        """ Draw all elements in self """
+        for elem in self.elements:
+            try:
+                elem.draw()
+            except AttributeError as e:
+                e.args = (f'{elem} is not drawable',)
+                raise
+
+    def move(self, delta_x: float, delta_y: float):
+        """ Move the group by `delta_x` and `delta_y`"""
+        for elem in self.elements:
+            try:
+                elem.move(delta_x, delta_y)
+            except AttributeError as e:
+                e.args = (f'{elem} is not movable',)
+                raise
+
+    def is_inside(self, x: float, y: float):
+        for elem in self.elements:
+            try:
+                if elem.is_inside(x, y):
+                    return True
+            except AttributeError:
+                pass
+        return False
+
+    @property
+    def position(self) -> (float, float):
+        if self._ref:
+            return self.elements[self._ref]
+        return self._anchor
+
+    @position.setter
+    def position(self, new_value: (float, float)):
+        dx, dy = new_value[0]-self.position[0], new_value[1]-self.position[1]
+        self.move(dx, dy)
+        self._anchor = new_value
+
+    def __iter__(self):
+        return self.elements
+
+    def remove(self, element: Drawable):
+        self.elements.remove(element)
+
+    def pop(self, index: int) -> Drawable:
+        return self.elements.pop(index)
+
+    @property
+    def ref(self) -> int:
+        return self._ref
+
+    def set_ref(self, index: int = None, element=None):
+        if index:
+            self._ref = index
+        elif element:
+            index = self.elements.index(element)
+            self._ref = index
+
+
+class Shape(ABC, Movable):
+
+    PRECISION = 10
+
+    __slots__ = '_position'
+
+    def __init__(self, center_x: float, center_y: float):
+        self._position = [center_x, center_y]
+
+    def _get_position(self) -> (float, float):
+        return self._position[0], self._position[1]
+
+    def _set_position(self, new_value: (float, float)):
+        self._position = list(new_value)
+
+    position = property(_get_position, _set_position)
+
+    def _get_center_x(self) -> float:
+        return self._position[0]
+
+    def _set_center_x(self, new_value: float):
+        self._position[0] = new_value
+
+    center_x = property(_get_center_x, _set_center_x)
+
+    def _get_center_y(self) -> float:
+        return self._position[1]
+
+    def _set_center_y(self, new_value: float):
+        self._position[1] = new_value
+
+    center_y = property(_get_center_y, _set_center_y)
+
+    def move(self, delta_x: float, delta_y: float):
+        self.center_x += delta_x
+        self.center_y += delta_y
+
+    @abstractmethod
+    def is_inside(self, x: float, y: float) -> bool:
+        """ Return True if point (x, y) is inside, False otherwise. """
+        pass
+
+    @property
+    @abstractmethod
+    def top(self):
+        pass
+
+    @top.setter
+    @abstractmethod
+    def top(self):
+        pass
+
+    @property
+    @abstractmethod
+    def bottom(self):
+        pass
+
+    @bottom.setter
+    @abstractmethod
+    def bottom(self):
+        pass
+
+    @property
+    @abstractmethod
+    def left(self):
+        pass
+
+    @left.setter
+    @abstractmethod
+    def left(self):
+        pass
+
+    @property
+    @abstractmethod
+    def right(self):
+        pass
+
+    @right.setter
+    @abstractmethod
+    def right(self):
+        pass
+
+
+class Rectangle(Shape):
+
+    __slots__ = 'width', 'height', '_position'
+
+    def __init__(self, center_x: float, center_y: float, width: float, height: float):
+        super().__init__(center_x, center_y)
+        self.width = width
+        self.height = height
+
+    def _get_right(self) -> float:
+        return self._position[0] + round(self.width / 2, self.PRECISION)
+
+    def _set_right(self, new_value: float):
+        self.center_x += new_value - round(self.width / 2, self.PRECISION) - self.center_x
+
+    right = property(_get_right, _set_right)
+
+    def _get_left(self) -> float:
+        return self._position[0] - round(self.width / 2, self.PRECISION)
+
+    def _set_left(self, new_value: float):
+        self.center_x += new_value + round(self.width / 2, self.PRECISION) - self.center_x
+
+    left = property(_get_left, _set_left)
+
+    def _get_top(self) -> float:
+        return self._position[1] + round(self.height / 2, self.PRECISION)
+
+    def _set_top(self, new_value: float):
+        self.center_y += new_value - round(self.height / 2, self.PRECISION) - self.center_y
+
+    top = property(_get_top, _set_top)
+
+    def _get_bottom(self) -> float:
+        return self._position[1] - round(self.height / 2, self.PRECISION)
+
+    def _set_bottom(self, new_value: float):
+        self.center_y += new_value + round(self.height / 2, self.PRECISION) - self.center_y
+
+    bottom = property(_get_bottom, _set_bottom)
+
+    @property
+    def size(self) -> (float, float):
+        return self.width, self.height
+
+    def is_inside(self, x: float, y: float) -> bool:
+        """ Return True if point (x, y) is inside, False otherwise """
+        return self.left <= x <= self.right and self.bottom <= y <= self.top
+
+
+class Circle(Shape):
+
+    __slots__ = '_position', 'radius'
+
+    def __init__(self, center_x: float, center_y: float, radius: float):
+        super().__init__(center_x, center_y)
+        self.radius = radius
+
+    def _get_right(self) -> float:
+        return self._position[0] + self.radius
+
+    def _set_right(self, new_value: float):
+        self.center_x += new_value - self.radius - self.center_x
+
+    right = property(_get_right, _set_right)
+
+    def _get_left(self) -> float:
+        return self._position[0] - self.radius
+
+    def _set_left(self, new_value: float):
+        self.center_x += new_value + self.radius - self.center_x
+
+    left = property(_get_left, _set_left)
+
+    def _get_top(self) -> float:
+        return self._position[1] + self.radius
+
+    def _set_top(self, new_value: float):
+        self.center_y += new_value - self.radius - self.center_y
+
+    top = property(_get_top, _set_top)
+
+    def _get_bottom(self) -> float:
+        return self._position[1] - self.radius
+
+    def _set_bottom(self, new_value: float):
+        self.center_y += new_value + self.radius - self.center_y
+
+    bottom = property(_get_bottom, _set_bottom)
+
+    def is_inside(self, x: float, y: float) -> bool:
+        """ Return True if point (x, y) is inside, False otherwise """
+        return ((self.center_x - x)**2 + (self.center_y - y)**2)*0.5 < self.radius
+
+
+class DrawableRectangle(Rectangle, Drawable):
+
+    def __init__(self, center_x: float, center_y: float, width: float, height: float,
+                 color: arcade.Color = arcade.color.BLACK, alpha: int = 255, **kwargs):
+        super().__init__(center_x, center_y, width, height)
+
+        self.border_width = kwargs.pop('border_width', 1)  # type: float
+        self.tilt_angle = kwargs.pop('tilt_angle', 0)  # type: float
+        self.filled = kwargs.pop('filled', True)  # type: float
+
+        self.color = color
+        self.alpha = alpha
+
+        self.shape = None
+        self.change_resolved = False
+        self.recreate_vbo()
+
+    def __str__(self):
+        return f"size: {self.size} posn: {self._position}"
+
+    def _get_opacity(self) -> float:
+        return round(self.alpha / 255, 1)
+
+    def _set_opacity(self, new_value: float):
+        self.alpha = int(round(new_value * 255, 0))
+
+    opacity = property(_get_opacity, _set_opacity)
+
+    @property
+    def rgba(self) -> arcade.Color:
+        return self.color[0], self.color[1], self.color[2], self.alpha
+
+    def draw(self):
+        self.shape.draw()
+
+    def recreate_vbo(self):
+        self.shape = arcade.create_rectangle(
+            self.center_x, self.center_y, self.width, self.height, self.rgba,
+            self.border_width, self.tilt_angle, self.filled
+        )
+
+
+class Sprite(arcade.Sprite, Drawable, Movable):
+
+    point_sprite = arcade.Sprite()
+    point_sprite.points = (0, 0)
+
+    def is_inside(self, x: float, y: float):
+        Sprite.point_sprite.points = (x, y)
+        return arcade.check_for_collision(self, Sprite.point_sprite)
+
+    def move(self, delta_x, delta_y):
+        self.center_x += delta_x
+        self.center_y += delta_y
+
+
+class UIElement(Drawable, Movable):
+
+    """ Represents a UI element """
+
+    def __init__(self,
+                 drawable: Union[Drawable, Sprite],
+                 ref_shape: Shape = None):
+        self.drawable = drawable  # Preferably Group and movable too
+        self.ref_shape = ref_shape
+        if ref_shape is None:
+            assert hasattr(self.drawable, 'is_inside')
+        self._custom_mouse = None  # type: Optional[Dict[MouseState, Sprite]]
+
+    def draw(self):
+        """ Draw the element """
+        self.drawable.draw()
+
+    def move(self, delta_x: float, delta_y: float):
+        """ Move element by `delta_x` and `delta_y` """
+        self.drawable.move(delta_x, delta_y)
+        if self.ref_shape:
+            self.ref_shape.move(delta_x, delta_y)
+
+    @property
+    def position(self) -> (float, float):
+        """ Return the center_x and center_y of the element """
+        if self.ref_shape:
+            return self.ref_shape.position
+        return self.drawable.position
+
+    @position.setter
+    def position(self, new_value: (float, float)):
+        """ Set center of the element to `new_value` """
+        if self.ref_shape:
+            self.ref_shape.position = new_value
+        self.drawable.position = new_value
+
+    @property
+    def right(self):
+        if self.ref_shape:
+            return self.ref_shape.right
+        return self.drawable.right
+
+    @right.setter
+    def right(self, new_value: float):
+        if not self.ref_shape:
+            self.drawable.right = new_value
+            return
+        dx = new_value - self.right
+        self.ref_shape.right = new_value
+        try:
+            self.drawable.right = new_value
+        except AttributeError:
+            self.drawable.move(dx, 0)
+
+    @property
+    def left(self):
+        if self.ref_shape:
+            return self.ref_shape.left
+        return self.drawable.left
+
+    @left.setter
+    def left(self, new_value: float):
+        if not self.ref_shape:
+            self.drawable.left = new_value
+            return
+        dx = new_value - self.left
+        self.ref_shape.left = new_value
+        try:
+            self.drawable.left = new_value
+        except AttributeError:
+            self.drawable.move(dx, 0)
+
+    @property
+    def top(self):
+        if self.ref_shape:
+            return self.ref_shape.top
+        return self.drawable.top
+
+    @top.setter
+    def top(self, new_value: float):
+        if not self.ref_shape:
+            self.drawable.top = new_value
+            return
+        dx = new_value - self.top
+        self.ref_shape.top = new_value
+        try:
+            self.drawable.top = new_value
+        except AttributeError:
+            self.drawable.move(dx, 0)
+
+    @property
+    def bottom(self):
+        if self.ref_shape:
+            return self.ref_shape.bottom
+        return self.drawable.bottom
+
+    @bottom.setter
+    def bottom(self, new_value: float):
+        if not self.ref_shape:
+            self.drawable.bottom = new_value
+            return
+        dx = new_value - self.bottom
+        self.ref_shape.bottom = new_value
+        try:
+            self.drawable.bottom = new_value
+        except AttributeError:
+            self.drawable.move(dx, 0)
+
+    def is_inside(self, x: float, y: float):
+        if self.ref_shape:
+            return self.ref_shape.is_inside(x, y)
+        self.drawable.is_inside(x, y)
+
+    def get_mouse_sprite(self, mouse_state: MouseState) -> Optional[Sprite]:
+        assert mouse_state in MOUSE_STATE
+        if self._custom_mouse:
+            return self._custom_mouse[mouse_state]
+        return None
+
+    def on_hover(self):
+        pass
+
+    def on_focus(self):
+        pass
+
+    def on_out(self):
+        pass
+
+    def on_press(self):
+        pass
+
+    def on_release(self):
+        pass

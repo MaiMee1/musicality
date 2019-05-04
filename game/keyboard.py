@@ -5,12 +5,12 @@ RSHIFT also registers as LSHIFT in many computer's keyboard.
 """
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 import arcade
-from arcade.arcade_types import Color, RGBA
+from arcade.arcade_types import Color
 
-import key
+from game import key
 
 SCALING_CONSTANT = 1
 SEP = 0.075

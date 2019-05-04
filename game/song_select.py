@@ -1,17 +1,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from io import StringIO
-from typing import Any, Union, Optional, Tuple, List, Dict, NewType, TextIO, Iterable, Callable, Hashable
-import warnings
-from random import random
+from typing import Optional
 
 import arcade
 import pyglet
 
-from constants import MouseState, MOUSE_STATE, UIElementState, UI_ELEMENT_STATE, GAME_STATE
-import key as key_
-from audio import AudioEngine, Beatmap
+from game.constants import MouseState, MOUSE_STATE, UIElementState, UI_ELEMENT_STATE, GAME_STATE
+from game import key as key_
+from game.audio import AudioEngine, Beatmap
 
 SCROLL_SPEED = 20
 

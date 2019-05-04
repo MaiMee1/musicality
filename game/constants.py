@@ -1,5 +1,5 @@
 from collections import namedtuple
-from type_ import *
+from game.type_ import *
 
 # for Beatmap
 SAMPLE = ('hitnormal', 'hitwhistle', 'hitfinish', 'hitclap')
@@ -20,8 +20,8 @@ GAME_STATE = _temp(*map(GameState, range(6)))
 _temp = namedtuple('MouseConstant', ['IDLE', 'HOVER', 'PRESS', 'TEXT'])
 MOUSE_STATE = _temp(*map(MouseState, range(4)))
 
-_temp = namedtuple('UIElementConstant', ['INACTIVE', 'ACTIVE'])
-UI_ELEMENT_STATE = _temp(*map(UIElementState, range(2)))
+_temp = namedtuple('UIElementConstant', ['INACTIVE', 'ACTIVE', 'FOCUS'])
+UI_ELEMENT_STATE = _temp(*map(UIElementState, range(3)))
 
 _temp = namedtuple('HitSoundConstant', ['CLAP', 'FINISH', 'WHISTLE', 'NORMAL'])
 HIT_SOUND = _temp(8, 4, 2, 0)

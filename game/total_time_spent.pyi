@@ -51,7 +51,7 @@ Apr 20, 2019 (Sat)  1 hour  mapping
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Union, Optional, Tuple, List, Dict, NewType, TextIO, Iterable, Callable
+from typing import Union, Optional, Tuple, List, Dict, Iterable
 
 import pyglet
 
@@ -341,8 +341,7 @@ class Beatmap:
 class HitObject:
     """ Represents an Osu! HitObject """
 
-    from constants import HIT_OBJECT_TYPE as TYPE, HIT_OBJECT_STATE as STATE, \
-        HitObjectType as Type, HitObjectState as State
+    from game.constants import HIT_OBJECT_TYPE as TYPE, HitObjectType as Type, HitObjectState as State
 
     TYPE_NAME_MAP = {
         TYPE.TAP: 'soft-hitnormal.wav',
@@ -518,7 +517,7 @@ class AccuracyBar:
         pass
 
 
-from constants import GameState, GAME_STATE
+from game.constants import GameState
 
 
 class Game:
