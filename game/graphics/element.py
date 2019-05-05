@@ -21,10 +21,10 @@ class Button(UIElement):
         if self._text:
             drawable.append(self._text)
 
-        super().__init__(drawable=drawable, ref_shape=self._rec)
+        super().__init__(drawable=drawable)
 
         self.action = {
-            'on_press': (lambda *args: None,),
+            'on_press': lambda *args: None,
             'on_release': lambda *args: None,
             'on_focus': lambda *args: None,
             'on_hover': lambda *args: None,
@@ -33,13 +33,15 @@ class Button(UIElement):
 
     def on_press(self):
         """ Changes color to darker """
+        self.pressed = True
         if self.secondary_color:
             self._rec.color = self.secondary_color
         else:
-            self._rec.color = self.primary_color[0] * .8, self.primary_color[0] * .8, self.primary_color[0] * .8
+            self._rec.color = self.primary_color[0] * .7, self.primary_color[1] * .7, self.primary_color[2] * .7
         self.action['on_press']()
 
     def on_release(self):
+        self.pressed = False
         self._rec.color = self.primary_color
         self.action['on_release']()
 
