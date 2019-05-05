@@ -2,14 +2,14 @@ from typing import List
 
 import arcade
 
-from game.window.window import BaseWindow, MainWindow
+from game.window.window import BaseForm, Main
 from game.window import key
 from game.graphics.element import Button, UIElement, Text
 
 
-class MainMenu(BaseWindow):
+class MainMenu(BaseForm):
     """ The first state the user sees """
-    def __init__(self, window: MainWindow):
+    def __init__(self, window: Main):
         super().__init__(window)
         self.caption = 'musicality - Main Menu'
 
@@ -23,6 +23,8 @@ class MainMenu(BaseWindow):
         exit_text.move(-20, -10)
         exit_button.text = exit_text
         exit_button.action['on_press'] = self.on_close
+
+        exit_button.drawable[0].recreate_vbo()
 
         self.elements.append(exit_button)
 

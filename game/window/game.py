@@ -1,11 +1,11 @@
-from game.window.window import BaseWindow, MainWindow
+from game.window.window import BaseForm, Main
 
 import pyglet
 
 
-class Game(BaseWindow):
+class Game(BaseForm):
     """ Game mode """
-    def __init__(self, window: MainWindow):
+    def __init__(self, window: Main):
         super().__init__(window)
         self.caption = 'musicality - Game'
 

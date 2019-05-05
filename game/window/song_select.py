@@ -1,11 +1,11 @@
-from game.window.window import BaseWindow, MainWindow
+from game.window.window import BaseForm, Main
 
 from pyglet.window import key
 
 
-class SongSelect(BaseWindow):
+class SongSelect(BaseForm):
     """ Screen player can select songs """
-    def __init__(self, window: MainWindow):
+    def __init__(self, window: Main):
         super().__init__(window)
         self.caption = 'musicality - Song Select'
 
