@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
+from abc import ABCMeta, abstractmethod
 from typing import Iterable, Union, Optional, Dict
 
 import arcade
@@ -8,7 +8,7 @@ import arcade
 from game.constants import MouseState, MOUSE_STATE
 
 
-class Drawable(ABC):
+class Drawable(metaclass=ABCMeta):
     """ Base class for graphical objects """
 
     @abstractmethod
@@ -55,7 +55,7 @@ class Layer(Drawable):
         return self.elements.pop(index)
 
 
-class Movable(ABC):
+class Movable(metaclass=ABCMeta):
 
     @abstractmethod
     def move(self, delta_x: float, delta_y: float):
@@ -449,7 +449,6 @@ class Sprite(arcade.Sprite, Drawable, Movable):
 
 
 class UIElement(Drawable, Movable):
-
     """ Represents a UI element """
 
     def __init__(self,
