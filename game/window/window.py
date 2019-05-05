@@ -5,6 +5,9 @@ from typing import Optional
 from functools import partial
 
 import pyglet
+import arcade
+
+from pyglet.window import key
 
 glClear = partial(pyglet.gl.glClear, pyglet.gl.GL_COLOR_BUFFER_BIT | pyglet.gl.GL_DEPTH_BUFFER_BIT)
 
@@ -19,13 +22,16 @@ class BaseWindow(metaclass=ABCMeta):
 
     @abstractmethod
     def on_key_press(self, symbol: int, modifiers: int):
-        pass
+        # Default on_key_press handler
+        if symbol == key.ESCAPE and not (modifiers & ~(key.MOD_NUMLOCK |
+                                                       key.MOD_CAPSLOCK |
+                                                       key.MOD_SCROLLLOCK)):
+            self._window.dispatch_event('on_close')
 
     @abstractmethod
     def on_key_release(self, symbol: int, modifiers: int):
         pass
 
-    @abstractmethod
     def on_text(self, text: str):
         """The user input some text.
 
@@ -170,7 +176,11 @@ class BaseWindow(metaclass=ABCMeta):
 
         :event:
         """
-        pass
+        # Default on_close handler.
+        self._window.has_exit = True
+        from pyglet import app
+        if app.event_loop.is_running:
+            self._window.close()
 
     def on_mouse_enter(self, x: int, y: int):
         """The mouse was moved into the window.
@@ -235,7 +245,8 @@ class BaseWindow(metaclass=ABCMeta):
 
         :event:
         """
-        pass
+        viewport_width, viewport_height = self._window.get_viewport_size()
+        self._window.projection.set(width, height, viewport_width, viewport_height)
 
     def on_move(self, x: int, y: int):
         """The window was moved.
@@ -422,8 +433,18 @@ class BaseWindow(metaclass=ABCMeta):
         self._window.height = new_height
 
     @property
-    def projection(self) -> int:
-        """ The height of the window, in pixels """
+    def projection(self) -> pyglet.window.Projection:
+        """The OpenGL window projection
+
+        The default window projection is orthographic (2D), but can
+        be changed to a 3D or custom projection. Custom projections
+        should subclass :py:class:`pyglet.window.Projection`. Two
+        default projection classes are also provided, as
+        :py:class:`pyglet.window.Projection3D` and
+        :py:class:`pyglet.window.Projection3D`.
+
+        :type: :py:class:`pyglet.window.Projection`
+        """
         return self._window.projection
 
     @projection.setter
@@ -666,10 +687,83 @@ class BaseWindow(metaclass=ABCMeta):
         raise NotImplementedError
 
 
-class MainMenu(BaseWindow):
-    """ The first state the user sees """
-    def __init__(self, window: pyglet.window.Window):
-        super().__init__(window)
+# noinspection PyMethodOverriding,PyAbstractClass
+class MainWindow(arcade.Window):
+    """ Main window """
+    def __init__(self, Window):
+        """"""
+        super().__init__()
+        self.handler = Window(self)  # type: BaseWindow
 
+    def on_key_press(self, symbol: int, modifiers: int):
+        self.handler.on_key_press(symbol, modifiers)
 
+    def on_key_release(self, symbol: int, modifiers: int):
+        self.handler.on_key_release(symbol, modifiers)
+
+    def on_text(self, text: str):
+        self.handler.on_text(text)
+
+    def on_text_motion(self, motion: int):
+        self.handler.on_text_motion(motion)
+
+    def on_text_motion_select(self, motion: int):
+        self.handler.on_text_motion_select(motion)
+
+    def on_mouse_motion(self, x: int, y: int, dx: int, dy: int):
+        self.handler.on_mouse_motion(x, y, dx, dy)
+
+    def on_mouse_drag(self, x: int, y: int, dx: int, dy: int, buttons: int, modifiers: int):
+        self.handler.on_mouse_drag(x, y, dx, dy, buttons, modifiers)
+
+    def on_mouse_press(self, x: int, y: int, button: int, modifiers: int):
+        self.handler.on_mouse_press(x, y, button, modifiers)
+
+    def on_mouse_release(self, x: int, y: int, button: int, modifiers: int):
+        self.handler.on_mouse_release(x, y, button, modifiers)
+
+    def on_mouse_scroll(self, x: int, y: int, scroll_x: int, scroll_y: int):
+        self.handler.on_mouse_scroll(x, y, scroll_x, scroll_y)
+
+    def on_close(self):
+        self.handler.on_close()
+
+    def on_mouse_enter(self, x: int, y: int):
+        self.handler.on_mouse_enter(x, y)
+
+    def on_mouse_leave(self, x: int, y: int):
+        self.handler.on_mouse_leave(x, y)
+
+    def on_expose(self):
+        self.handler.on_expose()
+
+    def on_resize(self, width: int, height: int):
+        self.handler.on_resize(width, height)
+
+    def on_move(self, x: int, y: int):
+        self.handler.on_move(x, y)
+
+    def on_activate(self):
+        self.handler.on_activate()
+
+    def on_deactivate(self):
+        self.handler.on_deactivate()
+
+    def on_show(self):
+        self.handler.on_show()
+
+    def on_hide(self):
+        self.handler.on_hide()
+
+    def on_context_lost(self):
+        self.handler.on_context_lost()
+
+    def on_context_state_lost(self):
+        self.handler.on_context_state_lost()
+
+    def on_draw(self):
+        self.handler.on_draw()
+
+    def on_update(self, delta_time: float):
+        self.handler.on_update(delta_time)
 
