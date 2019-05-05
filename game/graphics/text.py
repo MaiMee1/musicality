@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Tuple
+
 from arcade import draw_text
 
 from game.graphics.primitives import Drawable, Movable
@@ -14,7 +16,7 @@ class Text(Drawable, Movable):
                  anchor_x: float, anchor_y: float,
                  color: (int, int, int, int),
                  size: float,
-                 font: str, **kwargs):
+                 font: Tuple[str] = ('calibri', 'arial'), **kwargs):
         """ Save value for text """
         self.text = text
         self._position = [anchor_x, anchor_y]

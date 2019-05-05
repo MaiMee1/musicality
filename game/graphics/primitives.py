@@ -67,15 +67,16 @@ class Group(Drawable, Movable):
 
     number = 0
 
-    __slots__ = 'elements', 'name', '_anchor', '_ref'
+    __slots__ = 'elements', 'name', '_anchor', '_ref_index'
 
     def __init__(self, elements: Iterable, **kwargs):
+        assert elements
         self.elements = list(elements)
         name = kwargs.pop('name', f'Group')
         self.name = f'{name} {Group.number}'
         Group.number += 1
         self._anchor = kwargs.pop('anchor', self.elements[0].position)
-        self._ref = kwargs.pop('ref', None)
+        self._ref_index = kwargs.pop('ref', 0)  # type: int
 
     def __str__(self):
         if self.name:
@@ -110,8 +111,8 @@ class Group(Drawable, Movable):
 
     @property
     def position(self) -> (float, float):
-        if self._ref:
-            return self.elements[self._ref]
+        if self._ref_index is not None:
+            return self.elements[self._ref_index].position
         return self._anchor
 
     @position.setter
@@ -120,28 +121,58 @@ class Group(Drawable, Movable):
         self.move(dx, dy)
         self._anchor = new_value
 
+    @property
+    def top(self):
+        if self._ref_index is not None:
+            return self.elements[self._ref_index].top
+
+    @property
+    def bottom(self):
+        if self._ref_index is not None:
+            return self.elements[self._ref_index].bottom
+
+    @property
+    def left(self):
+        if self._ref_index is not None:
+            return self.elements[self._ref_index].left
+
+    @property
+    def right(self):
+        if self._ref_index is not None:
+            return self.elements[self._ref_index].right
+
     def __iter__(self):
         return self.elements
 
-    def remove(self, element: Drawable):
+    def append(self, element: Union[Drawable, Movable]):
+        self.elements.append(element)
+
+    def remove(self, element: Union[Drawable, Movable]):
         self.elements.remove(element)
 
-    def pop(self, index: int) -> Drawable:
+    def pop(self, index: int) -> Union[Drawable, Movable]:
         return self.elements.pop(index)
 
     @property
-    def ref(self) -> int:
-        return self._ref
+    def ref(self) -> Optional[Union[Drawable, Movable]]:
+        if self._ref_index:
+            return self.elements[self._ref_index]
 
     def set_ref(self, index: int = None, element=None):
         if index:
-            self._ref = index
+            self._ref_index = index
         elif element:
             index = self.elements.index(element)
-            self._ref = index
+            self._ref_index = index
+
+    def __getitem__(self, item):
+        return self.elements[item]
+
+    def __setitem__(self, key, value):
+        self.elements[key] = value
 
 
-class Shape(ABC, Movable):
+class Shape(Movable):
 
     PRECISION = 10
 
@@ -357,9 +388,16 @@ class DrawableRectangle(Rectangle, Drawable):
     @color.setter
     def color(self, new_value: (int, int, int)):
         r, g, b = new_value
-        assert isinstance(r, int)
-        assert isinstance(g, int)
-        assert isinstance(b, int)
+        try:
+            assert isinstance(r, int)
+            assert isinstance(g, int)
+            assert isinstance(b, int)
+        except AssertionError as e:
+            try:
+                new_value = int(r), int(g), int(b)
+            except TypeError as e:
+                e.args = ('color must be in rgb format with int values',)
+                raise
         self._color = new_value
         self.change_resolved = False
 
@@ -415,7 +453,7 @@ class UIElement(Drawable, Movable):
     """ Represents a UI element """
 
     def __init__(self,
-                 drawable: Union[Drawable, Sprite],
+                 drawable: Union[Group, Drawable, Sprite],
                  ref_shape: Shape = None):
         self.drawable = drawable  # Preferably Group and movable too
         self.ref_shape = ref_shape
