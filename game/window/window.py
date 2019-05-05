@@ -740,77 +740,81 @@ class MainWindow(arcade.Window):
     def __init__(self, Window):
         """"""
         super().__init__()
-        self.handler = Window(self)  # type: BaseWindow
+        self._handler = Window(self)  # type: BaseWindow
 
     def on_key_press(self, symbol: int, modifiers: int):
-        self.handler.on_key_press(symbol, modifiers)
+        self._handler.on_key_press(symbol, modifiers)
 
     def on_key_release(self, symbol: int, modifiers: int):
-        self.handler.on_key_release(symbol, modifiers)
+        self._handler.on_key_release(symbol, modifiers)
 
     def on_text(self, text: str):
-        self.handler.on_text(text)
+        self._handler.on_text(text)
 
     def on_text_motion(self, motion: int):
-        self.handler.on_text_motion(motion)
+        self._handler.on_text_motion(motion)
 
     def on_text_motion_select(self, motion: int):
-        self.handler.on_text_motion_select(motion)
+        self._handler.on_text_motion_select(motion)
 
     def on_mouse_motion(self, x: int, y: int, dx: int, dy: int):
-        self.handler.on_mouse_motion(x, y, dx, dy)
+        self._handler.on_mouse_motion(x, y, dx, dy)
 
     def on_mouse_drag(self, x: int, y: int, dx: int, dy: int, buttons: int, modifiers: int):
-        self.handler.on_mouse_drag(x, y, dx, dy, buttons, modifiers)
+        self._handler.on_mouse_drag(x, y, dx, dy, buttons, modifiers)
 
     def on_mouse_press(self, x: int, y: int, button: int, modifiers: int):
-        self.handler.on_mouse_press(x, y, button, modifiers)
+        self._handler.on_mouse_press(x, y, button, modifiers)
 
     def on_mouse_release(self, x: int, y: int, button: int, modifiers: int):
-        self.handler.on_mouse_release(x, y, button, modifiers)
+        self._handler.on_mouse_release(x, y, button, modifiers)
 
     def on_mouse_scroll(self, x: int, y: int, scroll_x: int, scroll_y: int):
-        self.handler.on_mouse_scroll(x, y, scroll_x, scroll_y)
+        self._handler.on_mouse_scroll(x, y, scroll_x, scroll_y)
 
     def on_close(self):
-        self.handler.on_close()
+        self._handler.on_close()
 
     def on_mouse_enter(self, x: int, y: int):
-        self.handler.on_mouse_enter(x, y)
+        self._handler.on_mouse_enter(x, y)
 
     def on_mouse_leave(self, x: int, y: int):
-        self.handler.on_mouse_leave(x, y)
+        self._handler.on_mouse_leave(x, y)
 
     def on_expose(self):
-        self.handler.on_expose()
+        self._handler.on_expose()
 
     def on_resize(self, width: int, height: int):
-        self.handler.on_resize(width, height)
+        self._handler.on_resize(width, height)
 
     def on_move(self, x: int, y: int):
-        self.handler.on_move(x, y)
+        self._handler.on_move(x, y)
 
     def on_activate(self):
-        self.handler.on_activate()
+        self._handler.on_activate()
 
     def on_deactivate(self):
-        self.handler.on_deactivate()
+        self._handler.on_deactivate()
 
     def on_show(self):
-        self.handler.on_show()
+        self._handler.on_show()
 
     def on_hide(self):
-        self.handler.on_hide()
+        self._handler.on_hide()
 
     def on_context_lost(self):
-        self.handler.on_context_lost()
+        self._handler.on_context_lost()
 
     def on_context_state_lost(self):
-        self.handler.on_context_state_lost()
+        self._handler.on_context_state_lost()
 
     def on_draw(self):
-        self.handler.on_draw()
+        self._handler.on_draw()
 
     def on_update(self, delta_time: float):
-        self.handler.on_update(delta_time)
+        self._handler.on_update(delta_time)
+
+    def change_handler(self, handler: BaseWindow):
+        assert isinstance(handler, BaseWindow)
+        self._handler = handler
 

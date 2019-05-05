@@ -1,13 +1,13 @@
-from game.window.window import BaseWindow
+from game.window.window import BaseWindow, MainWindow
 
-import pyglet
+from pyglet.window import key
 
 
 class MainMenu(BaseWindow):
     """ The first state the user sees """
-    def __init__(self, window: pyglet.window.Window):
+    def __init__(self, window: MainWindow):
         super().__init__(window)
-        self.fullscreen = True
+        self.caption = 'musicality - Main Menu'
 
     def on_draw(self):
         pass
@@ -17,6 +17,8 @@ class MainMenu(BaseWindow):
 
     def on_key_press(self, symbol: int, modifiers: int):
         super().on_key_press(symbol, modifiers)
+        if symbol == key.ENTER:
+            self.change_state('song select')
 
     def on_key_release(self, symbol: int, modifiers: int):
         pass
@@ -37,5 +39,7 @@ class MainMenu(BaseWindow):
         pass
 
     def change_state(self, state: str):
-        pass
+        if state == 'song select':
+            from .song_select import SongSelect
+            self._window.change_handler(SongSelect(self._window))
 

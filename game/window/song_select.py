@@ -1,17 +1,24 @@
-from game.window.window import BaseWindow
+from game.window.window import BaseWindow, MainWindow
 
 import pyglet
 
 
 class SongSelect(BaseWindow):
     """ Screen player can select songs """
-    def __init__(self, window: pyglet.window.Window):
+    def __init__(self, window: MainWindow):
         super().__init__(window)
+        self.caption = 'musicality - Song Select'
 
     def on_draw(self):
         pass
 
     def on_update(self, delta_time: float):
+        pass
+
+    def on_key_press(self, symbol: int, modifiers: int):
+        super().on_key_press(symbol, modifiers)
+
+    def on_key_release(self, symbol: int, modifiers: int):
         pass
 
     def on_mouse_motion(self, x: int, y: int, dx: int, dy: int):
@@ -27,12 +34,6 @@ class SongSelect(BaseWindow):
         pass
 
     def on_mouse_scroll(self, x: int, y: int, scroll_x: int, scroll_y: int):
-        pass
-
-    def on_key_press(self, symbol: int, modifiers: int):
-        pass
-
-    def on_key_release(self, symbol: int, modifiers: int):
         pass
 
     def on_text(self, text: str):
