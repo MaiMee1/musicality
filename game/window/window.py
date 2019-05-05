@@ -369,6 +369,11 @@ class BaseWindow(metaclass=ABCMeta):
         """ The window caption (title) """
         return self._window.caption
 
+    @caption.setter
+    def caption(self, caption: str):
+        """ The window caption (title) """
+        self._window.caption = caption
+
     @property
     def resizeable(self) -> bool:
         """ True if the window is resizable """
@@ -384,15 +389,91 @@ class BaseWindow(metaclass=ABCMeta):
         """ True if the window is currently fullscreen """
         return self._window.fullscreen
 
+    @fullscreen.setter
+    def fullscreen(self, fullscreen: bool):
+        """ Toggle to or from fullscreen """
+        self._window.set_fullscreen(fullscreen)
+
+    def set_fullscreen(self, fullscreen=True, screen=None, mode=None,
+                       width=None, height=None):
+        """Toggle to or from fullscreen.
+
+        After toggling fullscreen, the GL context should have retained its
+        state and objects, however the buffers will need to be cleared and
+        redrawn.
+
+        If `width` and `height` are specified and `fullscreen` is True, the
+        screen may be switched to a different resolution that most closely
+        matches the given size.  If the resolution doesn't match exactly,
+        a higher resolution is selected and the window will be centered
+        within a black border covering the rest of the screen.
+
+        :Parameters:
+            `fullscreen` : bool
+                True if the window should be made fullscreen, False if it
+                should be windowed.
+            `screen` : Screen
+                If not None and fullscreen is True, the window is moved to the
+                given screen.  The screen must belong to the same display as
+                the window.
+            `mode` : `ScreenMode`
+                The screen will be switched to the given mode.  The mode must
+                have been obtained by enumerating `Screen.get_modes`.  If
+                None, an appropriate mode will be selected from the given
+                `width` and `height`.
+            `width` : int
+                Optional width of the window.  If unspecified, defaults to the
+                previous window size when windowed, or the screen size if
+                fullscreen.
+
+                .. versionadded:: 1.2
+            `height` : int
+                Optional height of the window.  If unspecified, defaults to
+                the previous window size when windowed, or the screen size if
+                fullscreen.
+
+                .. versionadded:: 1.2
+        """
+        self._window.set_fullscreen(fullscreen, screen, mode, width, height)
+
     @property
     def visible(self) -> bool:
         """ True if the window is currently visible """
         return self._window.visible
 
+    @visible.setter
+    def visible(self, visible: bool = True):
+        """ Show or hide the window """
+        self._window.set_visible(visible)
+
     @property
     def vsync(self) -> bool:
         """ True if vsync is on """
         return self._window.vsync
+
+    @vsync.setter
+    def vsync(self, vsync: bool):
+        """Enable or disable vertical sync control.
+
+        When enabled, this option ensures flips from the back to the front
+        buffer are performed only during the vertical retrace period of the
+        primary display.  This can prevent "tearing" or flickering when
+        the buffer is updated in the middle of a video scan.
+
+        Note that LCD monitors have an analogous time in which they are not
+        reading from the video buffer; while it does not correspond to
+        a vertical retrace it has the same effect.
+
+        Also note that with multi-monitor systems the secondary monitor
+        cannot be synchronised to, so tearing and flicker cannot be avoided
+        when the window is positioned outside of the primary display.
+
+        :Parameters:
+            `vsync` : bool
+                If True, vsync is enabled, otherwise it is disabled.
+
+        """
+        self._window.set_vsync(vsync)
 
     @property
     def display(self):
@@ -450,11 +531,6 @@ class BaseWindow(metaclass=ABCMeta):
     @projection.setter
     def projection(self, projection):
         self._window.projection = projection
-
-    @caption.setter
-    def caption(self, caption: str):
-        """ The window caption (title) """
-        self._window.caption = caption
 
     @property
     def size(self) -> (int, int):
@@ -519,11 +595,6 @@ class BaseWindow(metaclass=ABCMeta):
         """
         self._window.activate()
 
-    @visible.setter
-    def visible(self, visible: bool = True):
-        """ Show or hide the window """
-        self._window.set_visible(visible)
-
     def minimize(self):
         """ Minimize the window """
         self._window.minimize()
@@ -536,30 +607,6 @@ class BaseWindow(metaclass=ABCMeta):
         to either a single screen or the entire virtual desktop.
         """
         self._window.maximize()
-
-    @vsync.setter
-    def vsync(self, vsync: bool):
-        """Enable or disable vertical sync control.
-
-        When enabled, this option ensures flips from the back to the front
-        buffer are performed only during the vertical retrace period of the
-        primary display.  This can prevent "tearing" or flickering when
-        the buffer is updated in the middle of a video scan.
-
-        Note that LCD monitors have an analogous time in which they are not
-        reading from the video buffer; while it does not correspond to
-        a vertical retrace it has the same effect.
-
-        Also note that with multi-monitor systems the secondary monitor
-        cannot be synchronised to, so tearing and flicker cannot be avoided
-        when the window is positioned outside of the primary display.
-
-        :Parameters:
-            `vsync` : bool
-                If True, vsync is enabled, otherwise it is disabled.
-
-        """
-        self._window.set_vsync(vsync)
 
     def set_mouse_visible(self, visible: bool = True):
         """Show or hide the mouse cursor.
