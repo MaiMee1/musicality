@@ -110,6 +110,16 @@ class Group(Drawable, Movable):
         return False
 
     @property
+    def anchor(self) -> (float, float):
+        return self._anchor
+
+    @anchor.setter
+    def anchor(self, new_value: (float, float)):
+        """ Change anchor without moving """
+        self._ref_index = None
+        self._anchor = [new_value[0], new_value[1]]
+
+    @property
     def position(self) -> (float, float):
         if self._ref_index is not None:
             return self.elements[self._ref_index].position
@@ -117,29 +127,60 @@ class Group(Drawable, Movable):
 
     @position.setter
     def position(self, new_value: (float, float)):
-        dx, dy = new_value[0]-self.position[0], new_value[1]-self.position[1]
+        if self._ref_index is not None:
+            dx, dy = new_value[0]-self.position[0], new_value[1]-self.position[1]
+        else:
+            dx, dy = new_value[0]-self._anchor[0], new_value[1]-self._anchor[1]
+            self._anchor = new_value
         self.move(dx, dy)
-        self._anchor = new_value
 
     @property
     def top(self):
         if self._ref_index is not None:
             return self.elements[self._ref_index].top
 
+    @top.setter
+    def top(self, new_value: float):
+        if not self.top:
+            raise AttributeError("can't set attribute")
+        dy = new_value-self.top
+        self.move(0, dy)
+
     @property
     def bottom(self):
         if self._ref_index is not None:
             return self.elements[self._ref_index].bottom
+
+    @bottom.setter
+    def bottom(self, new_value: float):
+        if not self.bottom:
+            raise AttributeError("can't set attribute")
+        dy = new_value-self.bottom
+        self.move(0, dy)
 
     @property
     def left(self):
         if self._ref_index is not None:
             return self.elements[self._ref_index].left
 
+    @left.setter
+    def left(self, new_value: float):
+        if not self.left:
+            raise AttributeError("can't set attribute")
+        dx = new_value-self.left
+        self.move(dx, 0)
+
     @property
     def right(self):
         if self._ref_index is not None:
             return self.elements[self._ref_index].right
+
+    @right.setter
+    def right(self, new_value: float):
+        if not self.right:
+            raise AttributeError("can't set attribute")
+        dx = new_value-self.right
+        self.move(dx, 0)
 
     def __iter__(self):
         return self.elements
@@ -459,6 +500,7 @@ class UIElement(Drawable, Movable):
         if ref_shape is None:
             assert hasattr(self.drawable, 'is_inside')
         self._custom_mouse = None  # type: Optional[Dict[MouseState, Sprite]]
+        self.pressed = False
 
     def draw(self):
         """ Draw the element """
@@ -531,16 +573,17 @@ class UIElement(Drawable, Movable):
         if not self.ref_shape:
             self.drawable.top = new_value
             return
-        dx = new_value - self.top
+        dy = new_value - self.top
         self.ref_shape.top = new_value
         try:
             self.drawable.top = new_value
         except AttributeError:
-            self.drawable.move(dx, 0)
+            self.drawable.move(0, dy)
 
     @property
     def bottom(self):
         if self.ref_shape:
+            print('ref_shape')
             return self.ref_shape.bottom
         return self.drawable.bottom
 
@@ -549,17 +592,17 @@ class UIElement(Drawable, Movable):
         if not self.ref_shape:
             self.drawable.bottom = new_value
             return
-        dx = new_value - self.bottom
+        dy = new_value - self.bottom
         self.ref_shape.bottom = new_value
         try:
             self.drawable.bottom = new_value
         except AttributeError:
-            self.drawable.move(dx, 0)
+            self.drawable.move(0, dy)
 
     def is_inside(self, x: float, y: float):
         if self.ref_shape:
             return self.ref_shape.is_inside(x, y)
-        self.drawable.is_inside(x, y)
+        return self.drawable.is_inside(x, y)
 
     def get_mouse_sprite(self, mouse_state: MouseState) -> Optional[Sprite]:
         assert mouse_state in MOUSE_STATE
@@ -581,8 +624,10 @@ class UIElement(Drawable, Movable):
 
     @abstractmethod
     def on_press(self):
+        self.pressed = True
         pass
 
     @abstractmethod
     def on_release(self):
+        self.pressed = False
         pass
