@@ -372,7 +372,7 @@ class BaseWindow(metaclass=ABCMeta):
     @caption.setter
     def caption(self, caption: str):
         """ The window caption (title) """
-        self._window.caption = caption
+        self._window.set_caption(caption)
 
     @property
     def resizeable(self) -> bool:
