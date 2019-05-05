@@ -12,7 +12,7 @@ from pyglet.window import key
 glClear = partial(pyglet.gl.glClear, pyglet.gl.GL_COLOR_BUFFER_BIT | pyglet.gl.GL_DEPTH_BUFFER_BIT)
 
 
-class BaseWindow(metaclass=ABCMeta):
+class BaseForm(metaclass=ABCMeta):
     """ Base window for each state handling arcade.Window """
 
     __slots__ = '_window'
@@ -248,6 +248,16 @@ class BaseWindow(metaclass=ABCMeta):
         """
         viewport_width, viewport_height = self._window.get_viewport_size()
         self._window.projection.set(width, height, viewport_width, viewport_height)
+
+        # original_viewport = self._window.get_viewport()
+        #
+        # # unscaled_viewport = self.get_viewport_size()
+        # # scaling = unscaled_viewport[0] / width
+        #
+        # self._window.set_viewport(original_viewport[0],
+        #                   original_viewport[0] + width,
+        #                   original_viewport[2],
+        #                   original_viewport[2] + height)
 
     def on_move(self, x: int, y: int):
         """The window was moved.
@@ -737,12 +747,12 @@ class BaseWindow(metaclass=ABCMeta):
 
 
 # noinspection PyMethodOverriding,PyAbstractClass
-class MainWindow(arcade.Window):
+class Main(arcade.Window):
     """ Main window """
     def __init__(self, Window):
         """"""
-        super().__init__()
-        self._handler = Window(self)  # type: BaseWindow
+        super().__init__(resizable=True)
+        self._handler = Window(self)  # type: BaseForm
 
     def on_key_press(self, symbol: int, modifiers: int):
         self._handler.on_key_press(symbol, modifiers)
@@ -816,7 +826,7 @@ class MainWindow(arcade.Window):
     def on_update(self, delta_time: float):
         self._handler.on_update(delta_time)
 
-    def change_handler(self, handler: BaseWindow):
-        assert isinstance(handler, BaseWindow)
+    def change_handler(self, handler: BaseForm):
+        assert isinstance(handler, BaseForm)
         self._handler = handler
 
