@@ -10,7 +10,7 @@ from typing import Dict, List
 import arcade
 from arcade.arcade_types import Color
 
-from game import key
+from game.window import key
 
 SCALING_CONSTANT = 1
 SEP = 0.075

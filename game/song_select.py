@@ -7,7 +7,7 @@ import arcade
 import pyglet
 
 from game.constants import MouseState, MOUSE_STATE, UIElementState, UI_ELEMENT_STATE, GAME_STATE
-from game import key as key_
+from game.window import key as key_
 from game.audio import AudioEngine, Beatmap
 
 SCROLL_SPEED = 20

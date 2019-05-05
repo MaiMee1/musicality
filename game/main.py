@@ -8,7 +8,8 @@ import arcade
 import pyglet
 
 from game.keyboard import Keyboard, Key
-from game import keyboard as keyboard_, key as key_
+from game import keyboard as keyboard_
+from game.window import key as key_
 from game.constants import GAME_STATE, GameState
 from game.song_select import SongSelect, UIManger
 

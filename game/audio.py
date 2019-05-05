@@ -402,7 +402,7 @@ class Beatmap:
     def generate_hit_objects(self) -> List[HitObject]:
         """ Generate and return a list of processed hit_objects """
         from random import seed, shuffle
-        from game import key
+        from game.window import key
 
         seed(round(sum(self._hit_times), 3))
 
