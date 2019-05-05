@@ -1,7 +1,7 @@
 from typing import Optional, Tuple
 
-from .primitives import UIElement, DrawableRectangle, Group
-from .text import Text
+from game.graphics.primitives import UIElement, DrawableRectangle, Group
+from game.graphics.text import Text
 
 
 class Button(UIElement):
