@@ -751,7 +751,7 @@ class Main(arcade.Window):
     """ Main window """
     def __init__(self, Window):
         """"""
-        super().__init__(resizable=True)
+        super().__init__(width=1920, height=1080, fullscreen=True)
         self._handler = Window(self)  # type: BaseForm
 
     def on_key_press(self, symbol: int, modifiers: int):
