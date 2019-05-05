@@ -27,6 +27,7 @@ class BaseWindow(metaclass=ABCMeta):
                                                        key.MOD_CAPSLOCK |
                                                        key.MOD_SCROLLLOCK)):
             self._window.dispatch_event('on_close')
+            pass
 
     @abstractmethod
     def on_key_release(self, symbol: int, modifiers: int):
@@ -354,6 +355,7 @@ class BaseWindow(metaclass=ABCMeta):
 
         :event:
         """
+        self.clear()
         pass
 
     # def update(self, delta_time: float):

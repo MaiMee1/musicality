@@ -1,6 +1,6 @@
 from game.window.window import BaseWindow, MainWindow
 
-import pyglet
+from pyglet.window import key
 
 
 class SongSelect(BaseWindow):
