@@ -39,7 +39,7 @@ def create_menu_button(text1: str, text2: str = '', color=arcade.color.PURPLE_HE
         self.action['on_draw'] = None
 
     from pathlib import Path
-    hover_sound = Audio(filepath=Path('resources/sound/button splash hover.wav'), absolute=False, static=True)
+    hover_sound = Audio(filepath=Path('resources/sound/menu hover.wav'), absolute=False, static=True)
 
     def on_in(self: Button):
         assert not self.in_
@@ -72,12 +72,12 @@ class MainMenu(BaseForm):
 
         delayed_close = Timer(1.5, self.on_close)
 
-        backward_sound = Audio(filepath=Path('resources/sound/button splash press backward.wav'), absolute=False)
+        backward_sound = Audio(filepath=Path('resources/sound/button press backward.wav'), absolute=False)
         exit_button = create_menu_button('Exit', 'See you later')
         exit_button.action['on_press'] = lambda *args: (backward_sound.play(), delayed_close.start())
         exit_button.position = self.width//2, self.height-762
 
-        sound = Audio(filepath=Path('resources/sound/button splash press.wav'), absolute=False)
+        sound = Audio(filepath=Path('resources/sound/button press.wav'), absolute=False)
         options_button = create_menu_button('Options', 'Change settings')
         options_button.action['on_press'] = lambda *args: sound.play()
         options_button.position = self.width//2, self.height-616
@@ -87,7 +87,7 @@ class MainMenu(BaseForm):
         edit_button.action['on_press'] = lambda *args: sound1.play()
         edit_button.position = self.width//2, self.height-470
 
-        sound2 = Audio(filepath=Path('resources/sound/button splash press forward.wav'), absolute=False)
+        sound2 = Audio(filepath=Path('resources/sound/button press start.wav'), absolute=False)
         start_button = create_menu_button('Start', 'Select songs to play!')
         start_button.action['on_press'] = lambda *args: (sound2.play(), self.change_state('song select'))
         start_button.position = self.width//2, self.height-324
