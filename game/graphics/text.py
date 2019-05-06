@@ -26,6 +26,12 @@ class Text(Drawable, Movable):
         self._font = font
         self._kwargs = kwargs
 
+    def draw(self):
+        """ Draw the text """
+        if self.visible:
+            draw_text(self.text, self.left, self.bottom, self._color,
+                      self.size, font_name=self._font, **self._kwargs)
+
     @property
     def position(self) -> (float, float):
         return self._position[0], self._position[1]
@@ -78,9 +84,3 @@ class Text(Drawable, Movable):
     @bottom.setter
     def bottom(self, new_value: float):
         self.anchor_y += new_value
-
-    def draw(self):
-        """ Draw the text """
-        if self.visible:
-            draw_text(self.text, self.left, self.bottom, self._color,
-                      self.size, font_name=self._font, **self._kwargs)

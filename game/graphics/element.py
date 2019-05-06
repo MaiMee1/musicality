@@ -23,16 +23,6 @@ class Button(UIElement):
 
         super().__init__(drawable=drawable)
 
-        self.action = {
-            'on_press': None,
-            'on_release': None,
-            'on_focus': None,
-            'on_hover': None,
-            'on_in': None,
-            'on_out': None,
-            'on_draw': None,
-        }  # type: Optional[Dict[str:Callable]]
-
     def draw(self):
         if self.action['on_draw']:
             self.action['on_draw'](self)
@@ -56,26 +46,6 @@ class Button(UIElement):
             self.rectangle.color = self.primary_color
             self.pressed = False
 
-    def on_focus(self):
-        if self.action['on_focus']:
-            self.action['on_focus'](self)
-
-    def on_hover(self):
-        if self.action['on_hover']:
-            self.action['on_hover'](self)
-
-    def on_in(self):
-        if self.action['on_in']:
-            self.action['on_in'](self)
-        else:
-            self.in_ = True
-
-    def on_out(self):
-        if self.action['on_out']:
-            self.action['on_out'](self)
-        else:
-            self.in_ = False
-
     @property
     def text(self) -> Optional[Text]:
         return self._text
@@ -86,10 +56,4 @@ class Button(UIElement):
             self.drawable.remove(self._text)
         self._text = new_value
         self.drawable.append(self._text)
-
-
-
-
-
-
 

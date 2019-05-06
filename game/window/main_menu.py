@@ -6,7 +6,6 @@ import arcade
 from game.window.window import BaseForm, Main
 from game.window import key
 from game.graphics.element import Button, UIElement, Text
-
 from game.audio import Audio
 
 
@@ -22,7 +21,7 @@ def create_menu_button(text1: str, text2: str = '', color=arcade.color.PURPLE_HE
 
     color_change_speed = 5
 
-    def change_color_to(self: Button, color: (int, int, int)):
+    def linear_color_change(self: Button, color: (int, int, int)):
         if self.rectangle.color != color:
             dr, dg, db = [(sec - rec) for sec, rec in zip(color, self.rectangle.color)]
             scale = max(dr, dg, db)
@@ -44,13 +43,13 @@ def create_menu_button(text1: str, text2: str = '', color=arcade.color.PURPLE_HE
     def on_in(self: Button):
         assert not self.in_
         hover_sound.play(force=True)
-        self.action['on_draw'] = lambda self: change_color_to(self, self.secondary_color)
+        self.action['on_draw'] = lambda self: linear_color_change(self, self.secondary_color)
         self.text2.visible = True
         self.in_ = True
 
     def on_out(self: Button):
         assert self.in_
-        self.action['on_draw'] = lambda self: change_color_to(self, self.primary_color)
+        self.action['on_draw'] = lambda self: linear_color_change(self, self.primary_color)
         self.text2.visible = False
         self.in_ = False
 
@@ -64,20 +63,19 @@ class MainMenu(BaseForm):
     def __init__(self, window: Main):
         super().__init__(window)
         self.caption = 'musicality - Main Menu'
-        self.fullscreen = False
 
         self.elements = []  # type: List[UIElement]
 
         from threading import Timer
 
-        delayed_close = Timer(1.5, self.on_close)
+        delayed_close = Timer(0.5, self.on_close)  # 1.5
 
         backward_sound = Audio(filepath=Path('resources/sound/menu press backward.wav'), absolute=False)
         exit_button = create_menu_button('Exit', 'See you later')
         exit_button.action['on_press'] = lambda *args: (backward_sound.play(), delayed_close.start())
         exit_button.position = self.width//2, self.height-762
 
-        sound = Audio(filepath=Path('resources/sound/menu press.wav'), absolute=False)
+        sound = Audio(filepath=Path('resources/sound/menu press options.wav'), absolute=False)
         options_button = create_menu_button('Options', 'Change settings')
         options_button.action['on_press'] = lambda *args: sound.play()
         options_button.position = self.width//2, self.height-616
@@ -105,8 +103,6 @@ class MainMenu(BaseForm):
 
     def on_key_press(self, symbol: int, modifiers: int):
         super().on_key_press(symbol, modifiers)
-        if symbol == key.ENTER:
-            self.change_state('song select')
 
     def on_key_release(self, symbol: int, modifiers: int):
         pass

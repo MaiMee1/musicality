@@ -73,12 +73,14 @@ class Group(Drawable, Movable):
 
     def __init__(self, elements: Iterable, **kwargs):
         self.visible = True
-        assert elements
         self.elements = list(elements)
         name = kwargs.pop('name', f'Group')
         self.name = f'{name} {Group.number}'
         Group.number += 1
-        self._anchor = kwargs.pop('anchor', self.elements[0].position)
+        try:
+            self._anchor = kwargs.pop('anchor', self.elements[0].position)
+        except IndexError:
+            self._anchor = [0, 0]
         self._ref_index = kwargs.pop('ref', 0)  # type: int
 
     def __str__(self):
@@ -191,6 +193,9 @@ class Group(Drawable, Movable):
 
     def append(self, element: Union[Drawable, Movable]):
         self.elements.append(element)
+
+    def extend(self, elements: Union[Iterable[Drawable], Iterable[Movable]]):
+        self.elements.extend(elements)
 
     def remove(self, element: Union[Drawable, Movable]):
         self.elements.remove(element)
@@ -490,8 +495,7 @@ class Sprite(arcade.Sprite, Drawable, Movable):
         return arcade.check_for_collision(self, Sprite.point_sprite)
 
     def move(self, delta_x: float, delta_y: float):
-        self.center_x += delta_x
-        self.center_y += delta_y
+        self.position = self.position[0]+delta_x, self.position[1]+delta_y
 
 
 class UIElement(Drawable, Movable):
@@ -505,12 +509,26 @@ class UIElement(Drawable, Movable):
         self.ref_shape = ref_shape
         if ref_shape is None:
             assert hasattr(self.drawable, 'is_inside')
-        self._custom_mouse = None  # type: Optional[Dict[MouseState, Sprite]]
+
+        # self._custom_mouse = None  # type: Optional[Dict[MouseState, Sprite]]
+
         self.pressed = False
         self.in_ = False
 
+        self.action = {
+            'on_press': None,
+            'on_release': None,
+            'on_focus': None,
+            'on_hover': None,
+            'on_in': None,
+            'on_out': None,
+            'on_draw': None,
+        }  # type: Optional[Dict[str:Callable]]
+
     def draw(self):
         """ Draw the element """
+        if self.action['on_draw']:
+            self.action['on_draw'](self)
         if self.visible:
             self.drawable.draw()
 
@@ -612,34 +630,42 @@ class UIElement(Drawable, Movable):
             return self.ref_shape.is_inside(x, y)
         return self.drawable.is_inside(x, y)
 
-    def get_mouse_sprite(self, mouse_state: MouseState) -> Optional[Sprite]:
-        assert mouse_state in MOUSE_STATE
-        if self._custom_mouse:
-            return self._custom_mouse[mouse_state]
-        return None
+    # def get_mouse_sprite(self, mouse_state: MouseState) -> Optional[Sprite]:
+    #     assert mouse_state in MOUSE_STATE
+    #     if self._custom_mouse:
+    #         return self._custom_mouse[mouse_state]
+    #     return None
 
-    @abstractmethod
     def on_hover(self):
-        pass
+        if self.action['on_hover']:
+            self.action['on_hover'](self)
+            pass
 
-    @abstractmethod
     def on_focus(self):
-        pass
+        if self.action['on_focus']:
+            self.action['on_focus'](self)
+            pass
 
-    @abstractmethod
     def on_in(self):
-        pass
+        if self.action['on_in']:
+            self.action['on_in'](self)
+        else:
+            self.in_ = True
 
-    @abstractmethod
     def on_out(self):
-        pass
+        if self.action['on_out']:
+            self.action['on_out'](self)
+        else:
+            self.in_ = False
 
-    @abstractmethod
     def on_press(self):
-        self.pressed = True
-        pass
+        if self.action['on_press']:
+            self.action['on_press'](self)
+        else:
+            self.pressed = True
 
-    @abstractmethod
     def on_release(self):
-        self.pressed = False
-        pass
+        if self.action['on_release']:
+            self.action['on_release']()
+        else:
+            self.pressed = False
