@@ -9,7 +9,7 @@ from game.window import key
 from game.graphics.element import Button, UIElement, Text
 
 
-def create_menu_button(text1: str, text2: str='', color=arcade.color.PURPLE_HEART, secondary_color=arcade.color.RED_VIOLET):
+def create_menu_button(text1: str, text2: str = '', color=arcade.color.PURPLE_HEART, secondary_color=arcade.color.RED_VIOLET):
     button = Button(0, 0, 550, 120, color, secondary_color=secondary_color)
     text1_ = Text(text1, button.left+140, button.bottom+48, arcade.color.WHITE, 56)
     text2_ = Text(text2, button.left+180, button.bottom+12, arcade.color.WHITE, 16)
@@ -18,22 +18,21 @@ def create_menu_button(text1: str, text2: str='', color=arcade.color.PURPLE_HEAR
     button.text2 = text2_
     button.drawable.append(text2_)
 
+    color_change_speed = 4
+
     def change_color_to(self, color: (int, int, int)):
-        # FIXME goes rainbow when cursor moves out while not finished
-        if self.rectangle.color != color:
             dr, dg, db = [(sec - rec) for sec, rec in zip(color, self.rectangle.color)]
             scale = max(dr, dg, db)
             if scale == 0:
                 scale = min(dr, dg, db)
                 if scale == 0:
-                    self.action['on_draw'] = lambda *args: None
+                    scale = 1
             self.rectangle.color = (
-                self.rectangle.color[0] + 5*min(int(dr / scale), 1),
-                self.rectangle.color[1] + 5*min(int(dg / scale), 1),
-                self.rectangle.color[2] + 5*min(int(db / scale), 1)
+                self.rectangle.color[0] + min(color_change_speed*int(dr / scale), dr),
+                self.rectangle.color[1] + min(color_change_speed*int(dg / scale), dg),
+                self.rectangle.color[2] + min(color_change_speed*int(db / scale), db)
             )
             return 1
-        self.action['on_draw'] = lambda *args: None
 
     def on_hover(self: Button):
         if not self.in_:
@@ -57,6 +56,7 @@ class MainMenu(BaseForm):
     def __init__(self, window: Main):
         super().__init__(window)
         self.caption = 'musicality - Main Menu'
+        self.fullscreen = False
 
         self.elements = []  # type: List[UIElement]
 
