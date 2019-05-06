@@ -518,6 +518,7 @@ class Audio:
                 self._player.play()
             except AssertionError as e:
                 if force:
+                    print('forced')
                     self.clone().play()
                 else:
                     e.args = ("cannot play while playing",)

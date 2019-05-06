@@ -1,4 +1,5 @@
 from typing import List
+from pathlib import Path
 
 import arcade
 
@@ -39,7 +40,6 @@ def create_menu_button(text1: str, text2: str = '', color=arcade.color.PURPLE_HE
 
     from pathlib import Path
     hover_sound = Audio(filepath=Path('resources/sound/button splash hover.wav'), absolute=False, static=True)
-    press_sound = Audio(filepath=Path('resources/sound/button splash press forward.wav'), absolute=False)
 
     def on_in(self: Button):
         assert not self.in_
@@ -54,12 +54,8 @@ def create_menu_button(text1: str, text2: str = '', color=arcade.color.PURPLE_HE
         self.text2.visible = False
         self.in_ = False
 
-    def on_press(self: Button):
-        press_sound.play()
-
     button.action['on_in'] = on_in
     button.action['on_out'] = on_out
-    button.action['on_press'] = on_press
     return button
 
 
@@ -76,22 +72,24 @@ class MainMenu(BaseForm):
 
         delayed_close = Timer(1.5, self.on_close)
 
+        backward_sound = Audio(filepath=Path('resources/sound/button splash press backward.wav'), absolute=False)
         exit_button = create_menu_button('Exit', 'See you later')
-        f = exit_button.action['on_press']
-        exit_button.action['on_press'] = lambda *args: (f(args[0]), delayed_close.start())
+        exit_button.action['on_press'] = lambda *args: (backward_sound.play(), delayed_close.start())
         exit_button.position = self.width//2, self.height-762
 
+        sound = Audio(filepath=Path('resources/sound/button splash press.wav'), absolute=False)
         options_button = create_menu_button('Options', 'Change settings')
-        # options_button.action['on_press'] = self.on_close
+        options_button.action['on_press'] = lambda *args: sound.play()
         options_button.position = self.width//2, self.height-616
 
+        sound1 = sound.clone()
         edit_button = create_menu_button('Edit', 'Make your own level!')
-        # edit_button.action['on_press'] = self.on_close
+        edit_button.action['on_press'] = lambda *args: sound1.play()
         edit_button.position = self.width//2, self.height-470
 
+        sound2 = Audio(filepath=Path('resources/sound/button splash press forward.wav'), absolute=False)
         start_button = create_menu_button('Start', 'Select songs to play!')
-        f = start_button.action['on_press']
-        start_button.action['on_press'] = lambda *args: (f(args[0]), self.change_state('song select'))
+        start_button.action['on_press'] = lambda *args: (sound2.play(), self.change_state('song select'))
         start_button.position = self.width//2, self.height-324
 
         self.elements.extend((exit_button, options_button, edit_button, start_button))
