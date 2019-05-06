@@ -448,7 +448,7 @@ class Beatmap:
 class Audio:
     """ Represents audio file """
 
-    __slots__ = '_source', '_player', '_filename', '_constructor'
+    __slots__ = '_source', '_player', '_filename', '_constructor', 'static'
 
     def __init__(self, *,
                  filepath: Path = None, absolute: bool = False,
@@ -456,6 +456,7 @@ class Audio:
                  **kwargs):
         """ Load audio file from (1) filepath or (2) filename using a loader.
         Assume arguments are in the correct type. """
+        self.static = kwargs.pop('static', False)
         from functools import partial
         constructor = kwargs.pop('constructor', None)
         if constructor:
@@ -481,7 +482,7 @@ class Audio:
                     self._filename = filepath.name
                 else:
                     raise TypeError("Audio() missing 1 required keyword argument: 'filepath'")
-            self._constructor = partial(loader.media, name=self._filename)
+            self._constructor = partial(loader.media, name=self._filename, streaming=False)
         self._source = self._constructor()
         self._player = pyglet.media.Player()
         self._player.queue(self._source)
@@ -507,16 +508,20 @@ class Audio:
 
         This has no effect if the player is already playing.
         """
-        try:
-            assert not self.playing
-            if self._player.source is None:
-                self._player.queue(self._source)
-            self._player.play()
-        except AssertionError as e:
-            if force:
-                self.clone().play()
-            else:
-                e.args = ("cannot play while playing",)
+        if self.static:
+            self._source.play()
+        else:
+            try:
+                assert not self.playing
+                if self._player.source is None:
+                    self._player.queue(self._source)
+                self._player.play()
+            except AssertionError as e:
+                if force:
+                    self.clone().play()
+                else:
+                    e.args = ("cannot play while playing",)
+                    raise
 
     def stop(self):
         """ Stop the audio if playing """
@@ -538,10 +543,9 @@ class Audio:
         return self._player.time
 
     @time.setter
-    def time(self, time: Union[str, int, float]):
+    def time(self, time: float):
         """ Set current time to new_time"""
-        time = Time(time)
-        self._player.seek(float(time))
+        self._player.seek(time)
 
     @property
     def player(self) -> Optional[pyglet.media.Player]:
