@@ -627,6 +627,10 @@ class UIElement(Drawable, Movable):
         pass
 
     @abstractmethod
+    def on_in(self):
+        pass
+
+    @abstractmethod
     def on_out(self):
         pass
 

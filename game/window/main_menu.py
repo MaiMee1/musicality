@@ -1,6 +1,4 @@
 from typing import List
-from functools import partial
-from types import MethodType
 
 import arcade
 
@@ -8,19 +6,23 @@ from game.window.window import BaseForm, Main
 from game.window import key
 from game.graphics.element import Button, UIElement, Text
 
+from game.audio import Audio
+
 
 def create_menu_button(text1: str, text2: str = '', color=arcade.color.PURPLE_HEART, secondary_color=arcade.color.RED_VIOLET):
+    """ Create a menu button that changes color when hover """
     button = Button(0, 0, 550, 120, color, secondary_color=secondary_color)
-    text1_ = Text(text1, button.left+140, button.bottom+48, arcade.color.WHITE, 56)
-    text2_ = Text(text2, button.left+180, button.bottom+12, arcade.color.WHITE, 16)
+    text1_ = Text(text1, button.left+140, button.bottom+42, arcade.color.WHITE, 56)
+    text2_ = Text(text2, button.left+180, button.bottom+16, arcade.color.WHITE, 16)
     text2_.visible = False
     button.text = text1_
     button.text2 = text2_
     button.drawable.append(text2_)
 
-    color_change_speed = 4
+    color_change_speed = 5
 
-    def change_color_to(self, color: (int, int, int)):
+    def change_color_to(self: Button, color: (int, int, int)):
+        if self.rectangle.color != color:
             dr, dg, db = [(sec - rec) for sec, rec in zip(color, self.rectangle.color)]
             scale = max(dr, dg, db)
             if scale == 0:
@@ -32,21 +34,26 @@ def create_menu_button(text1: str, text2: str = '', color=arcade.color.PURPLE_HE
                 self.rectangle.color[1] + min(color_change_speed*int(dg / scale), dg),
                 self.rectangle.color[2] + min(color_change_speed*int(db / scale), db)
             )
-            return 1
+            return
+        self.action['on_draw'] = None
 
-    def on_hover(self: Button):
-        if not self.in_:
-            self.text2.visible = True
-            self.action['on_draw'] = lambda self: change_color_to(self, self.secondary_color)
-            self.in_ = True
+    from pathlib import Path
+    sound = Audio(filepath=Path('resources/sound/button splash hover.wav'), absolute=False)
+
+    def on_in(self: Button):
+        assert not self.in_
+        sound.play(force=True)
+        self.action['on_draw'] = lambda self: change_color_to(self, self.secondary_color)
+        self.text2.visible = True
+        self.in_ = True
 
     def on_out(self: Button):
-        if self.in_:
-            self.text2.visible = False
-            self.action['on_draw'] = lambda self: change_color_to(self, self.primary_color)
-            self.in_ = False
+        assert self.in_
+        self.action['on_draw'] = lambda self: change_color_to(self, self.primary_color)
+        self.text2.visible = False
+        self.in_ = False
 
-    button.action['on_hover'] = on_hover
+    button.action['on_in'] = on_in
     button.action['on_out'] = on_out
     return button
 
@@ -100,6 +107,8 @@ class MainMenu(BaseForm):
         for element in self.elements:
             if element.is_inside(x, y):
                 element.on_hover()
+                if not element.in_:
+                    element.on_in()
             elif element.in_:
                 element.on_out()
 

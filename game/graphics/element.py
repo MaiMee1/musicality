@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict, Callable
 
 from game.graphics.primitives import UIElement, DrawableRectangle, Group
 from game.graphics.text import Text
@@ -24,40 +24,57 @@ class Button(UIElement):
         super().__init__(drawable=drawable)
 
         self.action = {
-            'on_press': lambda *args: None,
-            'on_release': lambda *args: None,
-            'on_focus': lambda *args: None,
-            'on_hover': lambda *args: None,
-            'on_out': lambda *args: None,
-            'on_draw': lambda *args: None,
-        }
+            'on_press': None,
+            'on_release': None,
+            'on_focus': None,
+            'on_hover': None,
+            'on_in': None,
+            'on_out': None,
+            'on_draw': None,
+        }  # type: Optional[Dict[str:Callable]]
 
     def draw(self):
-        self.action['on_draw'](self)
+        if self.action['on_draw']:
+            self.action['on_draw'](self)
         super().draw()
 
     def on_press(self):
-        """ Changes color to darker """
-        a = self.action['on_press'](self)
-        if a is None:
+        """ Calls action:on_press default behaviour changes color to darker """
+        if self.action['on_press']:
+            self.action['on_press'](self)
+        else:
             if self.secondary_color:
                 self.rectangle.color = self.secondary_color
             else:
                 self.rectangle.color = self.primary_color[0] * .7, self.primary_color[1] * .7, self.primary_color[2] * .7
+            self.pressed = True
 
     def on_release(self):
-        a = self.action['on_release'](self)
-        if a is None:
+        if self.action['on_release']:
+            self.action['on_release']()
+        else:
             self.rectangle.color = self.primary_color
+            self.pressed = False
 
     def on_focus(self):
-        self.action['on_focus'](self)
+        if self.action['on_focus']:
+            self.action['on_focus'](self)
 
     def on_hover(self):
-        self.action['on_hover'](self)
+        if self.action['on_hover']:
+            self.action['on_hover'](self)
+
+    def on_in(self):
+        if self.action['on_in']:
+            self.action['on_in'](self)
+        else:
+            self.in_ = True
 
     def on_out(self):
-        self.action['on_out'](self)
+        if self.action['on_out']:
+            self.action['on_out'](self)
+        else:
+            self.in_ = False
 
     @property
     def text(self) -> Optional[Text]:
