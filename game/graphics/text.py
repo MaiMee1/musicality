@@ -9,21 +9,22 @@ from game.graphics.primitives import Drawable, Movable
 
 class Text(Drawable, Movable):
 
-    __slots__ = 'text', '_position', '_color', 'size', '_font', '_angle'
+    __slots__ = 'visible', 'text', '_position', '_color', 'size', '_font', '_angle'
 
     def __init__(self,
                  text: str,
-                 anchor_x: float, anchor_y: float,
+                 x: float, y: float,
                  color: (int, int, int, int),
                  size: float,
                  font: Tuple[str] = ('calibri', 'arial'), **kwargs):
         """ Save value for text """
+        self.visible = True
         self.text = text
-        self._position = [anchor_x, anchor_y]
+        self._position = [x, y]
         self._color = color
         self.size = size
         self._font = font
-        self._angle = kwargs.pop('angle', 0)
+        self._kwargs = kwargs
 
     @property
     def position(self) -> (float, float):
@@ -31,6 +32,7 @@ class Text(Drawable, Movable):
 
     @position.setter
     def position(self, new_value: (float, float)):
+        assert len(new_value) == 2
         self._position = list(new_value)
 
     @property
@@ -79,5 +81,6 @@ class Text(Drawable, Movable):
 
     def draw(self):
         """ Draw the text """
-        draw_text(self.text, self.left, self.bottom, self._color, self.size,
-                  font_name=self._font, rotation=self._angle)
+        if self.visible:
+            draw_text(self.text, self.left, self.bottom, self._color,
+                      self.size, font_name=self._font, **self._kwargs)

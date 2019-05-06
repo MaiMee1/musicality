@@ -22,9 +22,10 @@ class Layer(Drawable):
     number = 0
     last_z = 0
 
-    __slots__ = 'elements', 'name', 'z'
+    __slots__ = 'visible', 'elements', 'name', 'z'
 
     def __init__(self, elements: Iterable[Drawable], **kwargs):
+        self.visible = True
         self.elements = list(elements)
         name = kwargs.pop('name', 'Layer')
         self.name = f'{name} {Layer.number}'
@@ -38,12 +39,13 @@ class Layer(Drawable):
 
     def draw(self):
         """ Draw all elements in self """
-        try:
-            for elem in self.elements:
-                elem.draw()
-        except AttributeError as e:
-            e.args = (f'{elem} is not drawable',)
-            raise
+        if self.visible:
+            try:
+                for elem in self.elements:
+                    elem.draw()
+            except AttributeError as e:
+                e.args = (f'{elem} is not drawable',)
+                raise
 
     def __iter__(self):
         return self.elements
@@ -67,9 +69,10 @@ class Group(Drawable, Movable):
 
     number = 0
 
-    __slots__ = 'elements', 'name', '_anchor', '_ref_index'
+    __slots__ = 'visible', 'elements', 'name', '_anchor', '_ref_index'
 
     def __init__(self, elements: Iterable, **kwargs):
+        self.visible = True
         assert elements
         self.elements = list(elements)
         name = kwargs.pop('name', f'Group')
@@ -84,12 +87,13 @@ class Group(Drawable, Movable):
 
     def draw(self):
         """ Draw all elements in self """
-        for elem in self.elements:
-            try:
-                elem.draw()
-            except AttributeError as e:
-                e.args = (f'{elem} is not drawable',)
-                raise
+        if self.visible:
+            for elem in self.elements:
+                try:
+                    elem.draw()
+                except AttributeError as e:
+                    e.args = (f'{elem} is not drawable',)
+                    raise
 
     def move(self, delta_x: float, delta_y: float):
         """ Move the group by `delta_x` and `delta_y`"""
@@ -399,7 +403,7 @@ class DrawableRectangle(Rectangle, Drawable):
                  color: arcade.Color = arcade.color.WHITE, alpha: int = 255,
                  **kwargs):
         super().__init__(center_x, center_y, width, height)
-
+        self.visible = True
         self._border_width = kwargs.pop('border_width', 1)  # type: float
         self._tilt_angle = kwargs.pop('tilt_angle', 0)  # type: float
         self._filled = kwargs.pop('filled', True)  # type: float
@@ -458,9 +462,10 @@ class DrawableRectangle(Rectangle, Drawable):
         return self.color[0], self.color[1], self.color[2], self._alpha
 
     def draw(self):
-        if not self.change_resolved:
-            self.recreate_vbo()
-        self._shape.draw()
+        if self.visible:
+            if not self.change_resolved:
+                self.recreate_vbo()
+            self._shape.draw()
 
     def move(self, delta_x: float, delta_y: float):
         self.center_x += delta_x
@@ -495,16 +500,19 @@ class UIElement(Drawable, Movable):
     def __init__(self,
                  drawable: Union[Group, Drawable, Sprite],
                  ref_shape: Shape = None):
+        self.visible = True
         self.drawable = drawable  # Preferably Group and movable too
         self.ref_shape = ref_shape
         if ref_shape is None:
             assert hasattr(self.drawable, 'is_inside')
         self._custom_mouse = None  # type: Optional[Dict[MouseState, Sprite]]
         self.pressed = False
+        self.in_ = False
 
     def draw(self):
         """ Draw the element """
-        self.drawable.draw()
+        if self.visible:
+            self.drawable.draw()
 
     def move(self, delta_x: float, delta_y: float):
         """ Move element by `delta_x` and `delta_y` """

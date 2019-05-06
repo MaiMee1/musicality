@@ -12,12 +12,12 @@ class Button(UIElement):
                  color: Tuple[int, int, int], alpha: int = 255,
                  **kwargs):
 
-        self._rec = DrawableRectangle(center_x, center_y, width, height, color, alpha)
-        self.primary_color = self._rec.color
-        self.secondary_color = kwargs.pop('pressed_color', None)  # type: Optional[(int, int, int)]
+        self.rectangle = DrawableRectangle(center_x, center_y, width, height, color, alpha)
+        self.primary_color = self.rectangle.color
+        self.secondary_color = kwargs.pop('secondary_color', None)  # type: Optional[(int, int, int)]
 
         self._text = kwargs.pop('text', None)  # type: Optional[Text]
-        drawable = Group([self._rec], name='Button')
+        drawable = Group([self.rectangle], name='Button')
         if self._text:
             drawable.append(self._text)
 
@@ -29,30 +29,35 @@ class Button(UIElement):
             'on_focus': lambda *args: None,
             'on_hover': lambda *args: None,
             'on_out': lambda *args: None,
+            'on_draw': lambda *args: None,
         }
+
+    def draw(self):
+        self.action['on_draw'](self)
+        super().draw()
 
     def on_press(self):
         """ Changes color to darker """
-        self.pressed = True
-        if self.secondary_color:
-            self._rec.color = self.secondary_color
-        else:
-            self._rec.color = self.primary_color[0] * .7, self.primary_color[1] * .7, self.primary_color[2] * .7
-        self.action['on_press']()
+        a = self.action['on_press'](self)
+        if a is None:
+            if self.secondary_color:
+                self.rectangle.color = self.secondary_color
+            else:
+                self.rectangle.color = self.primary_color[0] * .7, self.primary_color[1] * .7, self.primary_color[2] * .7
 
     def on_release(self):
-        self.pressed = False
-        self._rec.color = self.primary_color
-        self.action['on_release']()
+        a = self.action['on_release'](self)
+        if a is None:
+            self.rectangle.color = self.primary_color
 
     def on_focus(self):
-        self.action['on_focus']()
+        self.action['on_focus'](self)
 
     def on_hover(self):
-        self.action['on_hover']()
+        self.action['on_hover'](self)
 
     def on_out(self):
-        self.action['on_out']()
+        self.action['on_out'](self)
 
     @property
     def text(self) -> Optional[Text]:

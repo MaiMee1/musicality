@@ -10,7 +10,7 @@ class SongSelect(BaseForm):
         self.caption = 'musicality - Song Select'
 
     def on_draw(self):
-        pass
+        self.clear()
 
     def on_update(self, delta_time: float):
         pass
