@@ -462,25 +462,26 @@ class Audio:
             self._constructor = constructor
             assert filename != ''
             self._filename = filename
-        elif loader:
-            if filename:
-                if filepath:
-                    assert filepath.name == filename
-            else:
-                if filepath:
-                    filename = filepath.name
-                else:
-                    raise TypeError("Audio() needs 'filename' if 'loader' is used and 'filepath' is not specified")
-            self._filename = filename
         else:
-            if filepath:
-                if absolute:
-                    raise AssertionError
-                loader = pyglet.resource.Loader([filepath.parent])
-                self._filename = filepath.name
+            if loader:
+                if filename:
+                    if filepath:
+                        assert filepath.name == filename
+                else:
+                    if filepath:
+                        filename = filepath.name
+                    else:
+                        raise TypeError("Audio() needs 'filename' if 'loader' is used and 'filepath' is not specified")
+                self._filename = filename
             else:
-                raise TypeError("Audio() missing 1 required keyword argument: 'filepath'")
-        self._constructor = partial(loader.media, name=self._filename)
+                if filepath:
+                    if absolute:
+                        raise AssertionError
+                    loader = pyglet.resource.Loader([filepath.parent.as_posix()])
+                    self._filename = filepath.name
+                else:
+                    raise TypeError("Audio() missing 1 required keyword argument: 'filepath'")
+            self._constructor = partial(loader.media, name=self._filename)
         self._source = self._constructor()
         self._player = pyglet.media.Player()
         self._player.queue(self._source)
@@ -500,16 +501,22 @@ class Audio:
         """ Return length of the audio (seconds) """
         return self._source.duration
 
-    def play(self):
+    def play(self, force=False):
         """
         Begin playing the current source.
 
         This has no effect if the player is already playing.
         """
-        assert not self.playing
-        if self._player.source is None:
-            self._player.queue(self._source)
-        self._player.play()
+        try:
+            assert not self.playing
+            if self._player.source is None:
+                self._player.queue(self._source)
+            self._player.play()
+        except AssertionError as e:
+            if force:
+                self.clone().play()
+            else:
+                e.args = ("cannot play while playing",)
 
     def stop(self):
         """ Stop the audio if playing """
