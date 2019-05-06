@@ -38,11 +38,12 @@ def create_menu_button(text1: str, text2: str = '', color=arcade.color.PURPLE_HE
         self.action['on_draw'] = None
 
     from pathlib import Path
-    sound = Audio(filepath=Path('resources/sound/button splash hover.wav'), absolute=False)
+    hover_sound = Audio(filepath=Path('resources/sound/button splash hover.wav'), absolute=False, static=True)
+    press_sound = Audio(filepath=Path('resources/sound/button splash press forward.wav'), absolute=False)
 
     def on_in(self: Button):
         assert not self.in_
-        sound.play(force=True)
+        hover_sound.play(force=True)
         self.action['on_draw'] = lambda self: change_color_to(self, self.secondary_color)
         self.text2.visible = True
         self.in_ = True
@@ -53,8 +54,12 @@ def create_menu_button(text1: str, text2: str = '', color=arcade.color.PURPLE_HE
         self.text2.visible = False
         self.in_ = False
 
+    def on_press(self: Button):
+        press_sound.play()
+
     button.action['on_in'] = on_in
     button.action['on_out'] = on_out
+    button.action['on_press'] = on_press
     return button
 
 
@@ -67,8 +72,13 @@ class MainMenu(BaseForm):
 
         self.elements = []  # type: List[UIElement]
 
+        from threading import Timer
+
+        delayed_close = Timer(1.5, self.on_close)
+
         exit_button = create_menu_button('Exit', 'See you later')
-        exit_button.action['on_press'] = lambda *args: self.on_close()
+        f = exit_button.action['on_press']
+        exit_button.action['on_press'] = lambda *args: (f(args[0]), delayed_close.start())
         exit_button.position = self.width//2, self.height-762
 
         options_button = create_menu_button('Options', 'Change settings')
@@ -80,7 +90,8 @@ class MainMenu(BaseForm):
         edit_button.position = self.width//2, self.height-470
 
         start_button = create_menu_button('Start', 'Select songs to play!')
-        start_button.action['on_press'] = lambda *args: self.change_state('song select')
+        f = start_button.action['on_press']
+        start_button.action['on_press'] = lambda *args: (f(args[0]), self.change_state('song select'))
         start_button.position = self.width//2, self.height-324
 
         self.elements.extend((exit_button, options_button, edit_button, start_button))
