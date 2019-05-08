@@ -456,7 +456,7 @@ class Audio:
                  **kwargs):
         """ Load audio file from (1) filepath or (2) filename using a loader.
         Assume arguments are in the correct type. """
-        self.static = kwargs.pop('static', False)
+        self.static = kwargs.pop('static', True)
         from functools import partial
         constructor = kwargs.pop('constructor', None)
         if constructor:
@@ -482,7 +482,7 @@ class Audio:
                     self._filename = filepath.name
                 else:
                     raise TypeError("Audio() missing 1 required keyword argument: 'filepath'")
-            self._constructor = partial(loader.media, name=self._filename, streaming=False)
+            self._constructor = partial(loader.media, name=self._filename, streaming=(not self.static))
         self._source = self._constructor()
         self._player = pyglet.media.Player()
         self._player.queue(self._source)
