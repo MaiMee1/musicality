@@ -16,14 +16,19 @@ def create_back_button(text: str, color=arcade.color.ROSE_BONBON, secondary_colo
 
     # button.primary_color, button.secondary_color = color, secondary_color
 
-    button.main_rec = main_rec = DrawableRectangle(0, 0, 190-60, 64, color)
-    button.part_rec = part_rec = Group([DrawableRectangle(0, 0, 86, 64, color)])
+    button.main_rec = main_rec = DrawableRectangle(0, 0, 190, 64, color)
+    button.part_rec = part_rec = DrawableRectangle(0, 0, 86, 64, arcade.color.RED_DEVIL)
+    drawable.extend((main_rec, part_rec))
     part_rec.left = main_rec.left
-    button.text = text_ = Text(text, part_rec.right+20, main_rec.position[1], arcade.color.WHITE, 26, anchor_y='center')
+    main_rec.move(-60, 0)
+    part_rec.move(-40, 0)
+    button.position = 95 - 60, 0
+    button.text = text_ = Text(text, 57, main_rec.position[1], arcade.color.WHITE, 26, anchor_y='center')
     button.symbol = symbol = Sprite('resources/images/button back symbol.png')
-    symbol.position = part_rec.position
+    symbol.position = list(part_rec.position)
+    symbol.left = 4
 
-    drawable.extend((main_rec, part_rec, symbol, text_))
+    drawable.extend((symbol, text_))
 
     color_change_speed = 5
 
@@ -51,12 +56,18 @@ def create_back_button(text: str, color=arcade.color.ROSE_BONBON, secondary_colo
         hover_sound.play(force=True)
         self.action['on_draw'] = lambda self: linear_color_change(self, secondary_color)
         self.main_rec.move(60, 0)
+        self.part_rec.move(40, 0)
+        self.symbol.move(17, 0)
+        self.text.move(48, 0)
         self.in_ = True
 
     def on_out(self):
         assert self.in_
         self.action['on_draw'] = lambda self: linear_color_change(self, color)
         self.main_rec.move(-60, 0)
+        self.part_rec.move(-40, 0)
+        self.symbol.move(-17, 0)
+        self.text.move(-48, 0)
         self.in_ = False
 
     button.action['on_in'] = on_in
@@ -69,13 +80,12 @@ class SongSelect(BaseForm):
     def __init__(self, window: Main):
         super().__init__(window)
         self.caption = 'musicality - Song Select'
-        self.fullscreen = False
 
         self.elements = []  # type: List[UIElement]
 
         backward_sound = Audio(filepath=Path('resources/sound/menu press backward.wav'), absolute=False)
         back_button = create_back_button('back')
-        back_button.position = 95, self.height-1030
+        back_button.position = back_button.position[0], self.height - 1030
         back_button.action['on_press'] = lambda *args: (backward_sound.play(), self.change_state('main menu'))
 
         self.elements.append(back_button)
