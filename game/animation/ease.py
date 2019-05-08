@@ -52,3 +52,40 @@ class ColorChange(EasingBase):
     def ease(self, t: float) -> float:
         return quad_out(t)
 
+
+class Move(EasingBase):
+    """ Move from point """
+
+    def func(self, t: float, **kwargs) -> (float, float):
+        """Return eased position
+
+        :param t:
+        :param kwargs: posn1, posn2 Tuple[float, float]
+        :return: eased position
+        """
+        posn1, posn2 = kwargs.pop('posn1', None), kwargs.pop('posn2', None)
+        assert posn1 is not None, 'specify posn1'
+        assert posn2 is not None, 'specify posn2'
+        x1, y1 = posn1
+        x2, y2 = posn2
+        x = x1 + t*(x2 - x1)
+        y = y1 + t*(y2 - y1)
+        return x, y
+
+    def ease(self, t: float) -> float:
+        return sin_square_in_out(t)
+
+
+if __name__ == '__main__':
+    # test
+    import time
+    a = Move(duration=1)
+    a.begin()
+    t = time.time()
+    while True:
+        try:
+            print(a(posn1=(1, 1), posn2=(2, 2)), time.time()-t)
+            time.sleep(0.05)
+        except TimeoutError:
+            break
+
