@@ -13,6 +13,7 @@ def quad_in(t: float):
 
 def quad_out(t: float):
     """ f(t) = -t^2 + 1 """
+    t = 1 - t
     return 1 - t**2
 
 

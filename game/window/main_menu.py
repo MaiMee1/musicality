@@ -6,6 +6,7 @@ import arcade
 from game.window.window import BaseForm, Main
 from game.window import key
 from game.graphics.element import Button, UIElement, Text
+from game.animation.ease import ColorChange
 from game.audio import Audio
 
 
@@ -19,23 +20,13 @@ def create_menu_button(text1: str, text2: str = '', color=arcade.color.PURPLE_HE
     button.text2 = text2_
     button.drawable.append(text2_)
 
-    color_change_speed = 5
+    color_change = ColorChange(duration=0.25)
 
-    def linear_color_change(self: Button, color: (int, int, int)):
-        if self.rectangle.color != color:
-            dr, dg, db = [(sec - rec) for sec, rec in zip(color, self.rectangle.color)]
-            scale = max(dr, dg, db)
-            if scale == 0:
-                scale = min(dr, dg, db)
-                if scale == 0:
-                    scale = 1
-            self.rectangle.color = (
-                self.rectangle.color[0] + min(color_change_speed*int(dr / scale), dr),
-                self.rectangle.color[1] + min(color_change_speed*int(dg / scale), dg),
-                self.rectangle.color[2] + min(color_change_speed*int(db / scale), db)
-            )
-            return
-        self.action['on_draw'] = None
+    def change(self: Button, color1, color2):
+        try:
+            self.rectangle.rgba = color_change(color1=color1, color2=color2)
+        except TimeoutError:
+            self.action['on_draw'] = None
 
     from pathlib import Path
     hover_sound = Audio(filepath=Path('resources/sound/menu hover.wav'), absolute=False, static=True)
@@ -43,13 +34,15 @@ def create_menu_button(text1: str, text2: str = '', color=arcade.color.PURPLE_HE
     def on_in(self: Button):
         assert not self.in_
         hover_sound.play(force=True)
-        self.action['on_draw'] = lambda self: linear_color_change(self, self.secondary_color)
+        color_change.begin()
+        self.action['on_draw'] = lambda self: change(self, self.primary_color, self.secondary_color)
         self.text2.visible = True
         self.in_ = True
 
     def on_out(self: Button):
         assert self.in_
-        self.action['on_draw'] = lambda self: linear_color_change(self, self.primary_color)
+        color_change.begin()
+        self.action['on_draw'] = lambda self: change(self, self.secondary_color, self.primary_color)
         self.text2.visible = False
         self.in_ = False
 

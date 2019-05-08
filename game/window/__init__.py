@@ -1,5 +1,5 @@
-from game.window.window import BaseForm, Main
-from game.window.main_menu import MainMenu
-from game.window.song_select import SongSelect
+from .window import BaseForm, Main
+from .main_menu import MainMenu
+from .song_select import SongSelect
 
 

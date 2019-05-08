@@ -466,6 +466,11 @@ class DrawableRectangle(Rectangle, Drawable):
     def rgba(self) -> (int, int, int, int):
         return self.color[0], self.color[1], self.color[2], self._alpha
 
+    @rgba.setter
+    def rgba(self, new_value: (int, int, int, int)):
+        self.color = new_value[:3]
+        self.alpha = new_value[3]
+
     def draw(self):
         if self.visible:
             if not self.change_resolved:
