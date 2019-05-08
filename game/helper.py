@@ -26,3 +26,10 @@ def del_value(d: dict, value, index: int = 1, all: bool = False):
                 if count == index:
                     d.pop(k)
                     break
+
+
+def linear_interpolation(x: float, a: float, b: float, c: float, d: float):
+    """Transform `x` in the range [a, b] to `y` in the range [c, d]"""
+    return (x - a)*(d - c)/(b - a) + c
+
+
