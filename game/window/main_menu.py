@@ -7,7 +7,7 @@ import arcade
 from game.window.window import BaseForm, Main
 from game.window import key
 from game.graphics.element import Button, UIElement, Text
-from game.animation.ease import ColorChange
+from game.animation.ease import EaseColor
 from game.audio import Audio
 
 
@@ -21,7 +21,7 @@ def create_menu_button(text1: str, text2: str = '', color=arcade.color.PURPLE_HE
     button.text2 = text2_
     button.drawable.append(text2_)
 
-    color_change = ColorChange(duration=0.25)
+    color_change = EaseColor(duration=0.25)
 
     def change(self: Button, color1, color2):
         try:

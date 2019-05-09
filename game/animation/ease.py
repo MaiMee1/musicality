@@ -28,7 +28,7 @@ def filter_color(color) -> RGBA:
     return r, g, b, a
 
 
-class ColorChange(EasingBase):
+class EaseColor(EasingBase):
     """ Change color """
 
     def func(self, t: float, **kwargs) -> Color:
@@ -53,7 +53,7 @@ class ColorChange(EasingBase):
         return quad_out(t)
 
 
-class Move(EasingBase):
+class EasePosition(EasingBase):
     """ Move from point """
 
     def func(self, t: float, **kwargs) -> (float, float):
@@ -79,7 +79,7 @@ class Move(EasingBase):
 if __name__ == '__main__':
     # test
     import time
-    a = Move(duration=1)
+    a = EasePosition(duration=1)
     a.begin()
     t = time.time()
     while True:
