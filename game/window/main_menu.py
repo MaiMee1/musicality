@@ -1,5 +1,6 @@
 from typing import List
 from pathlib import Path
+from functools import partial
 
 import arcade
 
@@ -26,28 +27,38 @@ def create_menu_button(text1: str, text2: str = '', color=arcade.color.PURPLE_HE
         try:
             self.rectangle.rgba = color_change(color1=color1, color2=color2)
         except TimeoutError:
-            self.action['on_draw'] = None
+            raise
 
     from pathlib import Path
     hover_sound = Audio(filepath=Path('resources/sound/menu hover.wav'), absolute=False, static=True)
 
+    def change_to_secondary_color(self):
+        change(self, self.primary_color, self.secondary_color)
+
+    def change_to_primary_color(self):
+        change(self, self.secondary_color, self.primary_color)
+
     def on_in(self: Button):
-        assert not self.in_
-        hover_sound.play(force=True)
-        color_change.begin()
-        self.action['on_draw'] = lambda self: change(self, self.primary_color, self.secondary_color)
-        self.text2.visible = True
-        self.in_ = True
+        try:
+            assert not self.in_, 'called while already in'
+            hover_sound.play(force=True)
+            color_change.begin()
+            self.add_action('on_draw', change_to_secondary_color, hash(1))
+            self.text2.visible = True
+        except AssertionError as e:
+            raise TimeoutError from e
 
     def on_out(self: Button):
-        assert self.in_
-        color_change.begin()
-        self.action['on_draw'] = lambda self: change(self, self.secondary_color, self.primary_color)
-        self.text2.visible = False
-        self.in_ = False
+        try:
+            assert self.in_, 'called while already out'
+            color_change.begin()
+            self.add_action('on_draw', change_to_primary_color, hash(2))
+            self.text2.visible = False
+        except AssertionError as e:
+            raise TimeoutError from e
 
-    button.action['on_in'] = on_in
-    button.action['on_out'] = on_out
+    button.add_action('on_in', on_in, hash(3))
+    button.add_action('on_out', on_out, hash(4))
     return button
 
 
@@ -65,22 +76,22 @@ class MainMenu(BaseForm):
 
         backward_sound = Audio(filepath=Path('resources/sound/menu press backward.wav'), absolute=False)
         exit_button = create_menu_button('Exit', 'See you later')
-        exit_button.action['on_press'] = lambda *args: (backward_sound.play(), delayed_close.start())
+        exit_button.add_action('on_press', lambda *args: (backward_sound.play(), delayed_close.start()))
         exit_button.position = self.width//2, self.height-762
 
         sound = Audio(filepath=Path('resources/sound/menu press options.wav'), absolute=False)
         options_button = create_menu_button('Options', 'Change settings')
-        options_button.action['on_press'] = lambda *args: sound.play()
+        options_button.add_action('on_press', lambda *args: (sound.play(), ))
         options_button.position = self.width//2, self.height-616
 
         sound1 = sound.clone()
         edit_button = create_menu_button('Edit', 'Make your own level!')
-        edit_button.action['on_press'] = lambda *args: sound1.play()
+        edit_button.add_action('on_press', lambda *args: (sound1.play(), ))
         edit_button.position = self.width//2, self.height-470
 
         sound2 = Audio(filepath=Path('resources/sound/menu press start.wav'), absolute=False)
         start_button = create_menu_button('Start', 'Select songs to play!')
-        start_button.action['on_press'] = lambda *args: (sound2.play(), self.change_state('song select'))
+        start_button.add_action('on_press', lambda *args: (sound2.play(), self.change_state('song select')))
         start_button.position = self.width//2, self.height-324
 
         self.elements.extend((exit_button, options_button, edit_button, start_button))

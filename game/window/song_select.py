@@ -4,8 +4,7 @@ import arcade
 
 from game.window.window import BaseForm, Main
 from game.window import key
-from game.graphics.text import Text
-from game.graphics.primitives import UIElement, Sprite, DrawableRectangle, Group
+from game.graphics import UIElement, Sprite, DrawableRectangle, Group, Text
 from game.audio import Audio
 from game.animation.ease import ColorChange, Move
 

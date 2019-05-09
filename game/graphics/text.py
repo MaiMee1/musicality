@@ -57,6 +57,9 @@ class Text(Drawable, Movable):
     def anchor_y(self, new_value: float):
         self._position[1] = new_value
 
+    # TODO make real center_x and center_y, alias for now
+    center_x, center_y = anchor_x, anchor_y
+
     def move(self, delta_x: float, delta_y: float):
         self.anchor_x += delta_x
         self.anchor_y += delta_y

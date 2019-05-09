@@ -39,7 +39,10 @@ class EasingBase(metaclass=ABCMeta):
 
     def __call__(self, **kwargs):
         """ Call the function using eased time """
-        assert self.start_time is not None, 'begin easing first'
+        try:
+            assert self.start_time is not None, 'begin easing first'
+        except AssertionError:
+            self.begin()
         elapsed = self.time() - self.start_time
         t = elapsed/self.duration
         if t > self.end:
