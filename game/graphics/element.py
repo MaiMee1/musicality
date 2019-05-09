@@ -33,7 +33,7 @@ class UIElement(Drawable, Movable):
         }  # type: Dict[str:List[Tuple[Callable[['UIElement'], Any], Any]]]
 
     def _call_action(self, key: str):
-        """ Call all actions with `key` with unique `id`.
+        """ Call all actions with `key` with unique `id_`.
         Remove any actions that have timeout-ed. """
         cache = set()
         if self._action[key]:
@@ -48,11 +48,24 @@ class UIElement(Drawable, Movable):
                         self._action[key].pop(index)
 
     def add_action(self, key: str, action: Callable[[__class__], Any], id_: Optional[Any] = None):
-        """ Add an action to stack with `key` and optionally `id` """
+        """ Add an action to stack with `key` and optionally `id_` """
         if id_ is None:
-            self._action[key].append((action, id(action)))
+            id_ = id(action)
+        if id_ in (elem for _, elem in self._action[key]):
+            # already has id
+            pass
         else:
             self._action[key].append((action, id_))
+
+    def remove_action(self, key: str, id_: Optional[Any] = None, action: Optional[Callable[[__class__], Any]] = None):
+        """ Remove an action to stack with `key` and `id_` """
+        if id_ is None:
+            raise NotImplementedError
+        for index, (_, elem) in enumerate(self._action[key]):
+            if elem == id_:
+                self._action[key].pop(index)
+                # only remove one
+                break
 
     def draw(self):
         """ Draw the element """

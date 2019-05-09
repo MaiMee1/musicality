@@ -43,22 +43,23 @@ def create_menu_button(text1: str, text2: str = '', color=arcade.color.PURPLE_HE
             assert not self.in_, 'called while already in'
             hover_sound.play(force=True)
             color_change.begin()
-            self.add_action('on_draw', change_to_secondary_color, hash(1))
+            self.add_action('on_draw', change_to_secondary_color, 1)
             self.text2.visible = True
         except AssertionError as e:
             raise TimeoutError from e
 
     def on_out(self: Button):
+        self.remove_action('on_draw', 1)
         try:
             assert self.in_, 'called while already out'
             color_change.begin()
-            self.add_action('on_draw', change_to_primary_color, hash(2))
+            self.add_action('on_draw', change_to_primary_color, 2)
             self.text2.visible = False
         except AssertionError as e:
             raise TimeoutError from e
 
-    button.add_action('on_in', on_in, hash(3))
-    button.add_action('on_out', on_out, hash(4))
+    button.add_action('on_in', on_in, 3)
+    button.add_action('on_out', on_out, 4)
     return button
 
 
