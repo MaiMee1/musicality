@@ -469,6 +469,15 @@ class DrawableRectangle(Rectangle, Drawable):
         self.color = new_value[:3]
         self.alpha = new_value[3]
 
+    @property
+    def position(self) -> (float, float):
+        return self._position[0], self._position[1]
+
+    @position.setter
+    def position(self, new_value: (float, float)):
+        self._position = list(new_value)
+        self.change_resolved = False
+
     def draw(self):
         if self.visible:
             if not self.change_resolved:

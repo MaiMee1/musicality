@@ -40,6 +40,10 @@ def create_menu_button(text1: str, text2: str = '', color=arcade.color.PURPLE_HE
 
     def on_in(self: Button):
         try:
+            self.remove_action('on_draw', 2)
+        except IndexError:
+            pass
+        try:
             assert not self.in_, 'called while already in'
             hover_sound.play(force=True)
             color_change.begin()
@@ -49,7 +53,10 @@ def create_menu_button(text1: str, text2: str = '', color=arcade.color.PURPLE_HE
             raise TimeoutError from e
 
     def on_out(self: Button):
-        self.remove_action('on_draw', 1)
+        try:
+            self.remove_action('on_draw', 1)
+        except IndexError:
+            pass
         try:
             assert self.in_, 'called while already out'
             color_change.begin()

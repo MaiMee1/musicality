@@ -51,11 +51,11 @@ class UIElement(Drawable, Movable):
         """ Add an action to stack with `key` and optionally `id_` """
         if id_ is None:
             id_ = id(action)
-        if id_ in (elem for _, elem in self._action[key]):
-            # already has id
-            pass
-        else:
-            self._action[key].append((action, id_))
+        # if id_ in (elem for _, elem in self._action[key]):
+        #     # already has id
+        #     pass
+        # else:
+        self._action[key].append((action, id_))
 
     def remove_action(self, key: str, id_: Optional[Any] = None, action: Optional[Callable[[__class__], Any]] = None):
         """ Remove an action to stack with `key` and `id_` """
@@ -66,6 +66,8 @@ class UIElement(Drawable, Movable):
                 self._action[key].pop(index)
                 # only remove one
                 break
+        else:
+            raise IndexError("id doesn't exist")
 
     def draw(self):
         """ Draw the element """
