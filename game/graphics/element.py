@@ -21,6 +21,7 @@ class UIElement(Drawable, Movable):
 
         self.pressed = False
         self.in_ = False
+        self.selected = False
 
         self._action = {
             'on_press': [],
