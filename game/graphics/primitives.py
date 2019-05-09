@@ -229,29 +229,29 @@ class Shape(Movable):
     def __init__(self, center_x: float, center_y: float):
         self._position = [center_x, center_y]
 
-    def _get_position(self) -> (float, float):
+    @property
+    def position(self) -> (float, float):
         return self._position[0], self._position[1]
 
-    def _set_position(self, new_value: (float, float)):
+    @position.setter
+    def position(self, new_value: (float, float)):
         self._position = list(new_value)
 
-    position = property(_get_position, _set_position)
-
-    def _get_center_x(self) -> float:
+    @property
+    def center_x(self) -> float:
         return self._position[0]
 
-    def _set_center_x(self, new_value: float):
+    @center_x.setter
+    def center_x(self, new_value: float):
         self._position[0] = new_value
 
-    center_x = property(_get_center_x, _set_center_x)
-
-    def _get_center_y(self) -> float:
+    @property
+    def center_y(self) -> float:
         return self._position[1]
 
-    def _set_center_y(self, new_value: float):
+    @center_y.setter
+    def center_y(self, new_value: float):
         self._position[1] = new_value
-
-    center_y = property(_get_center_y, _set_center_y)
 
     def move(self, delta_x: float, delta_y: float):
         self.center_x += delta_x
@@ -312,37 +312,37 @@ class Rectangle(Shape):
         self.width = width
         self.height = height
 
-    def _get_right(self) -> float:
+    @property
+    def right(self) -> float:
         return self._position[0] + round(self.width / 2, self.PRECISION)
 
-    def _set_right(self, new_value: float):
+    @right.setter
+    def right(self, new_value: float):
         self.center_x += new_value - round(self.width / 2, self.PRECISION) - self.center_x
 
-    right = property(_get_right, _set_right)
-
-    def _get_left(self) -> float:
+    @property
+    def left(self) -> float:
         return self._position[0] - round(self.width / 2, self.PRECISION)
 
-    def _set_left(self, new_value: float):
+    @left.setter
+    def left(self, new_value: float):
         self.center_x += new_value + round(self.width / 2, self.PRECISION) - self.center_x
 
-    left = property(_get_left, _set_left)
-
-    def _get_top(self) -> float:
+    @property
+    def top(self) -> float:
         return self._position[1] + round(self.height / 2, self.PRECISION)
 
-    def _set_top(self, new_value: float):
+    @top.setter
+    def top(self, new_value: float):
         self.center_y += new_value - round(self.height / 2, self.PRECISION) - self.center_y
 
-    top = property(_get_top, _set_top)
-
-    def _get_bottom(self) -> float:
+    @property
+    def bottom(self) -> float:
         return self._position[1] - round(self.height / 2, self.PRECISION)
 
-    def _set_bottom(self, new_value: float):
+    @bottom.setter
+    def bottom(self, new_value: float):
         self.center_y += new_value + round(self.height / 2, self.PRECISION) - self.center_y
-
-    bottom = property(_get_bottom, _set_bottom)
 
     @property
     def size(self) -> (float, float):
@@ -361,37 +361,37 @@ class Circle(Shape):
         super().__init__(center_x, center_y)
         self.radius = radius
 
-    def _get_right(self) -> float:
+    @property
+    def right(self) -> float:
         return self._position[0] + self.radius
 
-    def _set_right(self, new_value: float):
+    @right.setter
+    def right(self, new_value: float):
         self.center_x += new_value - self.radius - self.center_x
 
-    right = property(_get_right, _set_right)
-
-    def _get_left(self) -> float:
+    @property
+    def left(self) -> float:
         return self._position[0] - self.radius
 
-    def _set_left(self, new_value: float):
+    @left.setter
+    def left(self, new_value: float):
         self.center_x += new_value + self.radius - self.center_x
 
-    left = property(_get_left, _set_left)
-
-    def _get_top(self) -> float:
+    @property
+    def top(self) -> float:
         return self._position[1] + self.radius
 
-    def _set_top(self, new_value: float):
+    @top.setter
+    def top(self, new_value: float):
         self.center_y += new_value - self.radius - self.center_y
 
-    top = property(_get_top, _set_top)
-
-    def _get_bottom(self) -> float:
+    @property
+    def bottom(self) -> float:
         return self._position[1] - self.radius
 
-    def _set_bottom(self, new_value: float):
+    @bottom.setter
+    def bottom(self, new_value: float):
         self.center_y += new_value + self.radius - self.center_y
-
-    bottom = property(_get_bottom, _set_bottom)
 
     def is_inside(self, x: float, y: float) -> bool:
         """ Return True if point (x, y) is inside, False otherwise """
@@ -421,13 +421,14 @@ class DrawableRectangle(Rectangle, Drawable):
     def __str__(self):
         return f"size: {self.size} posn: {self._position}"
 
-    def _get_opacity(self) -> float:
+    @property
+    def opacity(self) -> float:
         return round(self._alpha / 255, 1)
 
-    def _set_opacity(self, new_value: float):
+    @opacity.setter
+    def opacity(self, new_value: float):
         self._alpha = int(round(new_value * 255, 0))
-
-    opacity = property(_get_opacity, _set_opacity)
+        self.change_resolved = False
 
     @property
     def color(self) -> (int, int, int):
@@ -469,13 +470,29 @@ class DrawableRectangle(Rectangle, Drawable):
         self.color = new_value[:3]
         self.alpha = new_value[3]
 
-    @property
-    def position(self) -> (float, float):
-        return self._position[0], self._position[1]
-
-    @position.setter
+    @Rectangle.position.setter
     def position(self, new_value: (float, float)):
         self._position = list(new_value)
+        self.change_resolved = False
+
+    @Rectangle.right.setter
+    def right(self, new_value: float):
+        self.center_x += new_value - round(self.width / 2, self.PRECISION) - self.center_x
+        self.change_resolved = False
+
+    @Rectangle.left.setter
+    def left(self, new_value: float):
+        self.center_x += new_value + round(self.width / 2, self.PRECISION) - self.center_x
+        self.change_resolved = False
+
+    @Rectangle.top.setter
+    def top(self, new_value: float):
+        self.center_y += new_value - round(self.height / 2, self.PRECISION) - self.center_y
+        self.change_resolved = False
+
+    @Rectangle.bottom.setter
+    def bottom(self, new_value: float):
+        self.center_y += new_value + round(self.height / 2, self.PRECISION) - self.center_y
         self.change_resolved = False
 
     def draw(self):
