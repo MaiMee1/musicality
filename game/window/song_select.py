@@ -10,7 +10,7 @@ from game.window.window import BaseForm, Main
 from game.window import key
 from game.graphics import UIElement, Sprite, DrawableRectangle, Group, Text, Rectangle
 from game.animation.ease import EaseColor, EasePosition
-from game.audio import Audio
+from game.legacy.audio import Audio
 from osu.beatmap import Beatmap, get_beatmaps
 
 _beatmaps = get_beatmaps()
@@ -18,6 +18,7 @@ _beatmaps = get_beatmaps()
 
 class SongBar(UIElement):
     def __init__(self, beatmap: Beatmap, window: SongSelect, left=0, center_y=0):
+        self.beatmap = beatmap
         rec = DrawableRectangle(0, 0, 960, 121, arcade.color.RED_VIOLET, 200)
         white_wash = DrawableRectangle(0, 0, 960, 121, arcade.color.WHITE, 50)
         white_wash.visible = False
@@ -75,6 +76,7 @@ class SlidingSongBar:
         self.window = window
         self.song_bars = []
         self.on_screen = []
+        self.selected = []
 
         hover_sound = Audio(filepath=Path('resources/sound/menu hover.wav'), absolute=False)
 
@@ -92,7 +94,11 @@ class SlidingSongBar:
                 bars.append(song_bar)
             self.song_bars.append(bars)
         from random import random
-        self.on_mouse_scroll(0, 0, 0, int(random()*-80))
+        # self.on_mouse_scroll(0, 0, 0, int(random()*-80))
+
+    def get_selected(self) -> Beatmap:
+        if self.selected:
+            return self.selected[0].beatmap
 
     def on_draw(self):
         """ Draw what is on screen """
@@ -123,9 +129,16 @@ class SlidingSongBar:
                     if button == 1:
                         element.on_press()
                         element.on_select()
-                else:
-                    if element.selected:
-                        element.on_unselect()
+                        self.selected.append(element)
+        temp = []
+        for element in self.selected:
+            if element.is_inside(x, y):
+                pass
+            else:
+                element.on_unselect()
+                temp.append(element)
+        for elem in temp:
+            self.selected.remove(elem)
 
     def on_mouse_release(self, x: int, y: int, button: int, modifiers: int):
         # UI MANAGEMENT
@@ -268,6 +281,9 @@ class SongSelect(BaseForm):
             self.player.seek(timestamp)
             self.player.play()
 
+    def get_selected(self) -> Beatmap:
+        return self.bar_manager.get_selected()
+
     def on_draw(self):
         self.clear()
         # DRAW GRAPHICS
@@ -285,6 +301,10 @@ class SongSelect(BaseForm):
     def on_key_press(self, symbol: int, modifiers: int):
         if symbol == key.ESCAPE:
             self.change_state('main menu')
+        elif symbol in (key.ENTER, key.SPACE):
+            selected_beatmap = self.get_selected()
+            if selected_beatmap:
+                self.change_state('game', selected_beatmap)
 
     def on_key_release(self, symbol: int, modifiers: int):
         pass
@@ -327,8 +347,9 @@ class SongSelect(BaseForm):
     def on_text(self, text: str):
         pass
 
-    def change_state(self, state: str):
+    def change_state(self, state: str, *args):
         if state == 'main menu':
             self._window.change_handler(state)
         elif state == 'game':
-            self._window.change_handler(state)
+            self.player.next_source()
+            self._window.change_handler(state, *args)

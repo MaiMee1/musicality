@@ -758,7 +758,6 @@ class Main(arcade.Window):
         self._handler_cache = {
             'main menu': MainMenu(self),
             'song select': SongSelect(self),
-            'game': Game(self),
         }
         self._handler = self._handler_cache['main menu'] # type: BaseForm
 
@@ -834,18 +833,22 @@ class Main(arcade.Window):
     def on_update(self, delta_time: float):
         self._handler.on_update(delta_time)
 
-    def change_handler(self, handler: str):
+    def change_handler(self, handler: str, *args):
         if handler == 'song select':
             if handler not in self._handler_cache:
                 from .song_select import SongSelect
-                self._handler = SongSelect(self._window)
+                self._handler = SongSelect(self)
             else:
                 self._handler = self._handler_cache[handler]
         elif handler == 'main menu':
             if handler not in self._handler_cache:
                 from .main_menu import MainMenu
-                self._handler = MainMenu(self._window)
+                self._handler = MainMenu(self)
             else:
                 self._handler = self._handler_cache[handler]
+        elif handler == 'game':
+            from game.legacy.game import Game
+            beatmap = args[0]
+            self._handler = Game(self, beatmap)
 
 

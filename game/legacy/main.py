@@ -10,9 +10,8 @@ import pyglet
 from game.legacy.keyboard import Keyboard, Key
 from game.legacy import keyboard as keyboard_
 from game.window import key as key_
-from game.constants import GAME_STATE
-from game.legacy.song_select import UIManger
-import time
+from game.constants import GAME_STATE, GameState
+from game.legacy.song_select import SongSelect, UIManger
 
 from game.legacy.audio import Beatmap, AudioEngine, HitObject
 # TODO how to play
@@ -28,8 +27,45 @@ _hit_object_manager = None  # type: Optional[HitObjectManager]
 _UI_manager = None  # type: Optional[UIManger]
 
 
-class TimeEngine(time.TimeEngine):
+class TimeEngine:
     """ Manages time """
+
+    __slots__ = 'time', '_frame_times', '_t', '_start_time', '_dt', '_start', '_absolute_time'
+
+    def __init__(self, maxlen: int = 60):
+        import time
+        import collections
+        self.time = time.perf_counter
+        self._frame_times = collections.deque(maxlen=maxlen)
+        # Ensure that deque is not empty and sum() != 0
+        self._t = self._start_time = self._absolute_time = self.time()
+        self._dt = 0
+        self.tick()
+        self._start = False
+
+    def tick(self):
+        """ Call to signify one frame passing """
+        t = self.time()
+        self._dt = dt = t - self._t
+        self._t = t
+        self._frame_times.append(dt)
+
+    def start(self):
+        """ Start the clock """
+        self._start = True
+        self._start_time = self.time()
+
+    def reset(self):
+        """ Restart the clock """
+        self._start_time = self.time()
+
+    @property
+    def fps(self) -> float:
+        """ Return current average fps """
+        try:
+            return len(self._frame_times) / sum(self._frame_times)
+        except ZeroDivisionError:
+            return 0
 
     @property
     def game_time(self) -> float:
@@ -39,6 +75,16 @@ class TimeEngine(time.TimeEngine):
             return _audio_engine.song.time
         except AssertionError:
             return 0
+
+    @property
+    def play_time(self) -> float:
+        """ Return current time at function call in seconds """
+        return self.time() - self._absolute_time
+
+    @property
+    def dt(self) -> float:
+        """ Return time difference of this and last frame in seconds """
+        return self._dt
 
 
 class ScoreManager:
@@ -417,6 +463,7 @@ class GraphicsEngine:
                                          (r, g, b, a*(1 - elapsed/total)),
                                          tilt_angle=tilt_angle)
 
+
         rgba_ = GraphicsEngine.COLOR.PINK
 
         fx = FX(self._current_time, hit_object.reach_times[0], f, [key],
@@ -695,5 +742,95 @@ class Game:
         return
 
 
+def swap_codecs():
+    """ Because pyglet is still buggy we need this to ensure ffmpeg is used """
+    decoders = pyglet.media.codecs._decoders
+    assert "pyglet.media.codecs.ffmpeg.FFmpegDecoder" in str(decoders)  # assure that it exists
+    while str(decoders[0])[:41] != "<pyglet.media.codecs.ffmpeg.FFmpegDecoder":
+        # cycle until decoder is ffmpeg
+        temp = decoders.pop(0)
+        decoders.append(temp)
 
 
+class GameWindow(arcade.Window):
+    def __init__(self):
+        """ Create game window """
+        global _time_engine, _audio_engine, _graphics_engine, _window
+        super().__init__(1920, 1080, "musicality",
+                         fullscreen=False, resizable=True, update_rate=1/60)
+        arcade.set_background_color(arcade.color.BLACK)
+
+        swap_codecs()
+
+        _window = self
+        _time_engine = TimeEngine()
+        _audio_engine = AudioEngine()
+        _graphics_engine = GraphicsEngine()
+
+        self._state = GAME_STATE.SONG_SELECT
+        self.song_select = SongSelect(self)
+        _window.set_state(GAME_STATE.SONG_SELECT)
+        # self._state = GAME_STATE.GAME_PAUSED
+        # self.game = Game(1920, 1080, 'MONSTER', 'NORMAL')
+
+        self.handler = self.song_select
+
+    def update(self, delta_time: float):
+        self.handler.update(delta_time)
+
+    def on_update(self, delta_time: float):
+        self.handler.on_update(delta_time)
+
+    def on_draw(self):
+        self.handler.on_draw()
+
+    def on_resize(self, width: float, height: float):
+        self.handler.on_resize(width, height)
+
+    def on_mouse_motion(self, x: float, y: float, dx: float, dy: float):
+        self.handler.on_mouse_motion(x, y, dx, dy)
+
+    def on_key_press(self, symbol: int, modifiers: int):
+        self.handler.on_key_press(symbol, modifiers)
+
+    def on_key_release(self, symbol: int, modifiers: int):
+        self.handler.on_key_release(symbol, modifiers)
+
+    def on_mouse_press(self, x: float, y: float, button: int, modifiers: int):
+        self.handler.on_mouse_press(x, y, button, modifiers)
+
+    def on_mouse_drag(self, x: float, y: float, dx: float, dy: float,
+                      buttons: int, modifiers: int):
+        self.handler.on_mouse_drag(x, y, dx, dy, buttons, modifiers)
+
+    def on_mouse_release(self, x: float, y: float, button: int, modifiers: int):
+        self.handler.on_mouse_release(x, y, button, modifiers)
+
+    def on_mouse_scroll(self, x: int, y: int, scroll_x: int, scroll_y: int):
+        self.handler.on_mouse_scroll(x, y, scroll_x, scroll_y)
+
+    @property
+    def state(self):
+        """ Return current state of the instance """
+        return self._state
+
+    def set_state(self, state: GameState, **kwargs):
+        self._state = state
+        if state == GAME_STATE.GAME_PAUSED:
+            song = kwargs.pop('song', None)
+            difficulty = kwargs.pop('difficulty', None)
+            assert song is not None
+            assert difficulty is not None
+            self.handler = self.game = Game(1920, 1080, song, difficulty)
+        if state == GAME_STATE.SONG_SELECT:
+            self.handler = self.song_select
+
+
+def main():
+    global _window
+    _window = GameWindow()
+    arcade.run()
+
+
+if __name__ == "__main__":
+    main()

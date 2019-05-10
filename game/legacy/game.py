@@ -1,22 +1,25 @@
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Optional, List, Dict, Iterable
+from typing import Any, Union, Optional, Tuple, List, Dict, NewType, TextIO, Iterable, Callable, Hashable
+import warnings
 from random import random
 
 import arcade
 import pyglet
 
-from game.keyboard import Keyboard, Key
-from game import keyboard as keyboard_
-from game.window import key as key_
-from game.constants import GAME_STATE, GameState
-from game.song_select import SongSelect, UIManger
+import game.window.key as key_
+from game.legacy.keyboard import Keyboard, Key
+import game.legacy.keyboard as keyboard_
+from game.type_ import *
+from game.constants import MouseState, MOUSE_STATE, UIElementState, UI_ELEMENT_STATE, GAME_STATE, GameState
 
-from game.audio import Beatmap, AudioEngine, HitObject
+from game.legacy.audio import Beatmap, AudioEngine, HitObject
+
+from game.window import Main, BaseForm
+
 # TODO how to play
 
-_window = None  # type: Optional[arcade.Window]
+window = None  # type: Optional[arcade.Window]
 
 _time_engine = None  # type: Optional[TimeEngine]
 _audio_engine = None  # type: Optional[AudioEngine]
@@ -89,6 +92,7 @@ class TimeEngine:
 
 class ScoreManager:
     """ Manages calculation of score, combo, grade, etc. """
+
     def __init__(self, beatmap: Beatmap):
         from collections import deque
         self._beatmap = beatmap
@@ -212,7 +216,9 @@ class ScoreManager:
 
 class FX:
     """ Represents a graphical fx """
-    def __init__(self, start_time: float, finish_time: float, draw_function: callable, object_with_references: Iterable, *args):
+
+    def __init__(self, start_time: float, finish_time: float, draw_function: callable, object_with_references: Iterable,
+                 *args):
         """ :param args: draw function's arguments """
         self._start_time = start_time
         self._finish_time = finish_time
@@ -240,6 +246,8 @@ class FX:
 class GraphicsEngine:
     """ Manages graphical effects and background/video """
 
+    from io import BytesIO
+
     import arcade.color as COLOR
     from io import BytesIO
     from random import randint
@@ -257,7 +265,7 @@ class GraphicsEngine:
     def load_beatmap(self, beatmap: Beatmap):
         """ Call this each game """
         self._beatmap = beatmap
-        self._video = beatmap.generate_video()
+        # self._video = beatmap.generate_video()
 
         path = self._beatmap.get_folder_path() / self._beatmap.background_filename
         self._bg = arcade.load_texture(file_name=path.as_posix())
@@ -286,36 +294,33 @@ class GraphicsEngine:
         # gl.glMatrixMode(gl.GL_MODELVIEW)
         # gl.glEnableClientState(gl.GL_VERTEX_ARRAY)
 
-        if _window.state in (GAME_STATE.GAME_PAUSED, GAME_STATE.GAME_PLAYING, GAME_STATE.GAME_FINISH):
+        if self._video_player:
+            if self._video_player.source:
+                self._draw_video()
+        elif self._bg:
+            self._draw_background()
 
-            if self._video_player:
-                if self._video_player.source:
-                    self._draw_video()
-            elif self._bg:
-                self._draw_background()
+        if self._keyboard:
+            self._draw_keyboard()
 
-            if _window.state == GAME_STATE.GAME_PLAYING or _window.state == GAME_STATE.GAME_PAUSED:
-                if self._keyboard:
-                    self._draw_keyboard()
+        self._draw_fx()
 
-            self._draw_fx()
+        self._draw_clock()
+        self._draw_combo()
+        self._draw_score()
+        self._draw_total_accuracy()
+        self._draw_overall_grade()
+        self._draw_accuracy_bar()
 
-            self._draw_clock()
-            self._draw_combo()
-            self._draw_score()
-            self._draw_total_accuracy()
-            self._draw_overall_grade()
-            self._draw_accuracy_bar()
-
-            self._draw_game_time()
+        self._draw_game_time()
 
         self._draw_fps()
 
         self._draw_pointer()
 
     def _draw_background(self):
-        scale = min(_window.width / self._bg.width, _window.height / self._bg.height)
-        self._bg.draw(_window.width//2, _window.height//2, self._bg.width*scale, self._bg.height*scale)
+        scale = min(window.width / self._bg.width, window.height / self._bg.height)
+        self._bg.draw(window.width // 2, window.height // 2, self._bg.width * scale, self._bg.height * scale)
 
     def start_video(self):
         return
@@ -332,7 +337,7 @@ class GraphicsEngine:
         # frame = arcade.Image.open(frame_stream)
         # noinspection PyTypeChecker
         bg = arcade.load_texture(file_name=frame_stream)
-        bg.draw(_window.width//2, _window.height//2, bg.width, bg.height)
+        bg.draw(window.width // 2, window.height // 2, bg.width, bg.height)
 
     def _draw_keyboard(self):
         """ Draw keyboard """
@@ -340,14 +345,14 @@ class GraphicsEngine:
 
         if not keyboard.change_resolved:
             keyboard.shape = arcade.create_rectangle(
-                keyboard.anchor_x, keyboard.anchor_y, keyboard.width, keyboard.height, keyboard.rgba,
+                keyboard.center_x, keyboard.center_y, keyboard.width, keyboard.height, keyboard.rgba,
                 border_width=keyboard.border_width, tilt_angle=keyboard.tilt_angle, filled=keyboard.filled)
             keyboard.change_resolved = True
 
         for key in self._keyboard.keys.values():
             if not key.change_resolved:
                 key.shape = arcade.create_rectangle(
-                    key.anchor_x, key.anchor_y, key.width, key.height, key.rgba,
+                    key.center_x, key.center_y, key.width, key.height, key.rgba,
                     border_width=key.border_width, tilt_angle=key.tilt_angle, filled=key.filled)
                 key.change_resolved = True
 
@@ -366,7 +371,7 @@ class GraphicsEngine:
                         if '\n' in text:
                             multiline = True
                         label = pyglet.text.Label(
-                            text, 'Montserrat', key.height//2, color=(255, 255, 255, 255),
+                            text, 'Montserrat', key.height // 2, color=(255, 255, 255, 255),
                             x=key.position[0], y=key.position[1], anchor_x='center', anchor_y='center',
                             multiline=multiline)
                         key.graphic = label
@@ -460,16 +465,15 @@ class GraphicsEngine:
             arcade.draw_rectangle_filled(center_x, center_y,
                                          width,
                                          height,
-                                         (r, g, b, a*(1 - elapsed/total)),
+                                         (r, g, b, a * (1 - elapsed / total)),
                                          tilt_angle=tilt_angle)
-
 
         rgba_ = GraphicsEngine.COLOR.PINK
 
         fx = FX(self._current_time, hit_object.reach_times[0], f, [key],
                 key.center_x, key.center_y, key.width, key.height, rgba_, key.tilt_angle)
         end_fx = FX(hit_object.reach_times[0], hit_object.reach_times[0] + 0.195, g, [key],
-                key.center_x, key.center_y, key.width, key.height, rgba_, key.tilt_angle)
+                    key.center_x, key.center_y, key.width, key.height, rgba_, key.tilt_angle)
         return fx, end_fx
 
     def _draw_pointer(self):
@@ -485,28 +489,28 @@ class GraphicsEngine:
         if _score_manager:
             combo = _score_manager.combo
             output = f"combo: {combo}"
-            arcade.draw_text(output, 20, _window.height // 2 - 60, arcade.color.WHITE, 16)
+            arcade.draw_text(output, 20, window.height // 2 - 60, arcade.color.WHITE, 16)
 
     def _draw_score(self):
         """ Draw total score"""
         if _score_manager:
             score = _score_manager.score
             output = f"score: {score}"
-            arcade.draw_text(output, 20, _window.height // 2 + 30, arcade.color.WHITE, 16)
+            arcade.draw_text(output, 20, window.height // 2 + 30, arcade.color.WHITE, 16)
 
     def _draw_total_accuracy(self):
         """ Draw total accuracy """
         if _score_manager:
             ac = _score_manager.overall_accuracy
-            output = f"accuracy: {ac*100:.0f}%"
-            arcade.draw_text(output, 20, _window.height // 2 - 120, arcade.color.WHITE, 16)
+            output = f"accuracy: {ac * 100:.0f}%"
+            arcade.draw_text(output, 20, window.height // 2 - 120, arcade.color.WHITE, 16)
 
     def _draw_overall_grade(self):
         """ Draw overall grade """
         if _score_manager:
             grade = _score_manager.overall_grade
             output = f"grade: {grade}"
-            arcade.draw_text(output, 20, _window.height // 2 - 90, arcade.color.WHITE, 16)
+            arcade.draw_text(output, 20, window.height // 2 - 90, arcade.color.WHITE, 16)
 
     def _draw_accuracy_bar(self):
         """ Draw accuracy bar """
@@ -516,17 +520,18 @@ class GraphicsEngine:
         """ Show FPS on screen """
         fps = _time_engine.fps
         output = f"FPS: {fps:.1f}"
-        arcade.draw_text(output, 20, _window.height // 2, arcade.color.WHITE, 16)
+        arcade.draw_text(output, 20, window.height // 2, arcade.color.WHITE, 16)
 
     def _draw_game_time(self):
         """  """
         time = _time_engine.game_time
         output = f"audio time: {time:.3f}"
-        arcade.draw_text(output, 20, _window.height // 2 - 30, arcade.color.WHITE, 16)
+        arcade.draw_text(output, 20, window.height // 2 - 30, arcade.color.WHITE, 16)
 
 
 class HitObjectManager:
     """ Manages sending hit_objects to keys and GraphicEngine"""
+
     def __init__(self, hit_objects: List[HitObject], keyboard: Keyboard):
         self._keys = keyboard.keys
         self._incoming = self._hit_objects = hit_objects
@@ -606,23 +611,55 @@ class HitObjectManager:
                 pass
 
 
-class Game:
-    """ """
-    def __init__(self, width, height, song: str, difficulty: str):
-        """ """
+def generate_hit_objects(self: Beatmap) -> List[HitObject]:
+    """ Generate and return a list of processed hit_objects """
+    from random import seed, shuffle
+    from game.window import key
+
+    seed(round(sum(self._hit_times), 3))
+
+    def get_random(L: list, cache=[]):
+        if not cache:
+            shuffle(L)
+            cache.extend(L[:5])
+        return cache.pop(-1)
+
+    hit_objects = [
+        HitObject(self, hit_time, get_random(key.normal_keys), HitObject.TYPE.TAP)
+        for hit_time in self._hit_times
+    ]
+    print('called')
+    return hit_objects
+
+
+class Game(BaseForm):
+
+    def __init__(self, window_: Main, beatmap: Beatmap):
+        super().__init__(window_)
+        self.caption = 'musicality - Game'
+
+        # swap_codecs()
+
+        global window
+        window = window_
+
+        global _time_engine, _audio_engine, _graphics_engine
+        _time_engine = TimeEngine()
+        _audio_engine = AudioEngine()
+        _graphics_engine = GraphicsEngine()
+
         global _score_manager, _hit_object_manager, _UI_manager
-        filepath = self.get_beatmap_filepath(song, difficulty)
-        if filepath is None:
-            raise AssertionError
-        self._beatmap = Beatmap(filepath)
+
+        self._beatmap = beatmap
 
         keyboard_.set_scaling(5)
-        self._keyboard = Keyboard(width//2, height//2, model='small notebook', color=arcade.color.LIGHT_BLUE, alpha=150)
+        self._keyboard = Keyboard(self.width // 2, self.height // 2, model='small notebook', color=arcade.color.LIGHT_BLUE,
+                                  alpha=150)
 
         _score_manager = self._score_manager = ScoreManager(beatmap=self._beatmap)
-        self._hit_objects = self._beatmap.generate_hit_objects()
-        _hit_object_manager = self._hit_object_manager = HitObjectManager(hit_objects=self._hit_objects, keyboard=self._keyboard)
-        _UI_manager = self._UI_manager = UIManger()
+        self._hit_objects = generate_hit_objects(beatmap)
+        _hit_object_manager = self._hit_object_manager = HitObjectManager(hit_objects=self._hit_objects,
+                                                                          keyboard=self._keyboard)
 
         self._time_engine = _time_engine
         self._audio_engine = _audio_engine
@@ -633,33 +670,33 @@ class Game:
 
         _graphics_engine.set_keyboard(self._keyboard)
 
-        self._update_rate = 1/60
-        assert _window.state == GAME_STATE.GAME_PAUSED
+        self._update_rate = 1 / 60
+        self._state = GAME_STATE.GAME_PAUSED
 
     def start(self):
         """ Start the game """
-        _window.set_state(GAME_STATE.GAME_PLAYING)
+        self.set_state(GAME_STATE.GAME_PLAYING)
         self._audio_engine.song.play()
-        self._graphics_engine.start_video()
+        # self._graphics_engine.start_video()
         self._time_engine.start()
 
     def finish(self):
         """ Stop the game """
-        _window.set_state(GAME_STATE.GAME_FINISH)
+        self.set_state(GAME_STATE.GAME_FINISH)
 
     def pause(self):
         """ Pause the game """
         pass
 
     def update(self, delta_time: float):
+        pass
+
+    def on_update(self, delta_time: float):
         self._hit_object_manager.update()
         self._graphics_engine.update()
         if not self._audio_engine.song.playing:
-            if _window.state == GAME_STATE.GAME_PLAYING:
+            if self.state == GAME_STATE.GAME_PLAYING:
                 self.finish()
-
-    def on_update(self, delta_time: float):
-        pass
 
     def on_draw(self):
         """ This is called during the idle time when it should be called """
@@ -671,19 +708,13 @@ class Game:
 
     def on_key_press(self, symbol: int, modifiers: int):
         if symbol == key_.P:
-            if _window.state != GAME_STATE.GAME_PLAYING:
-                self.start()
+            self.start()
         if symbol == key_.ESCAPE:
-            if _window.state in (GAME_STATE.GAME_PLAYING, GAME_STATE.GAME_PAUSED, GAME_STATE.GAME_FINISH):
-                _window.set_state(GAME_STATE.SONG_SELECT)
+            self.change_state('song select')
         if symbol == key_.NUM_ADD:
             self._audio_engine.song.volume *= 2
         if symbol == key_.NUM_SUBTRACT:
             self._audio_engine.song.volume *= 0.5
-        if symbol == 99 and modifiers & 1 and modifiers & 2:
-            # CTRL + SHIFT + C to close, for fullscreen emergency
-            # TODO: Find a good way to exit
-            pyglet.app.exit()
 
         self._hit_object_manager.on_key_press(symbol, modifiers)
 
@@ -700,20 +731,20 @@ class Game:
                     hit_object.press(self._time_engine.game_time)
 
     def on_mouse_motion(self, x: float, y: float, dx: float, dy: float):
-        _UI_manager.on_mouse_motion(x, y, dx, dy)
+        pass
 
     def on_mouse_press(self, x: float, y: float, button: int, modifiers: int):
-        _UI_manager.on_mouse_press(x, y, button, modifiers)
+        pass
 
     def on_mouse_drag(self, x: float, y: float, dx: float, dy: float,
                       buttons: int, modifiers: int):
-        _UI_manager.on_mouse_drag(x, y, dx, dy, buttons, modifiers)
+        pass
 
     def on_mouse_release(self, x: float, y: float, button: int, modifiers: int):
-        _UI_manager.on_mouse_release(x, y, button, modifiers)
+        pass
 
     def on_mouse_scroll(self, x: int, y: int, scroll_x: int, scroll_y: int):
-        _UI_manager.on_mouse_scroll(x, y, scroll_x, scroll_y)
+        pass
 
     @property
     def update_rate(self):
@@ -726,20 +757,29 @@ class Game:
         assert isinstance(new_rate, float)
         self._update_rate = new_rate
 
-    @staticmethod
-    def get_beatmap_filepath(song: str, difficulty: str) -> Optional[Path]:
-        """ Return the filepath to .osu file given the name and
-        difficulty of the song. """
-        songs = Path('resources/Songs').rglob(f'*{song}*')
-        try:
-            for song in songs:
-                if difficulty == '*' and song.suffix == '.osu':
-                    return song
-                if difficulty in song.name and song.suffix == '.osu':
-                    return song
-        except StopIteration:
-            return
-        return
+    @property
+    def state(self):
+        """ Return current state of the instance """
+        return self._state
+
+    def set_state(self, state: GameState, **kwargs):
+        self._state = state
+        # if state == GAME_STATE.GAME_PAUSED:
+        #     song = kwargs.pop('song', None)
+        #     difficulty = kwargs.pop('difficulty', None)
+        #     assert song is not None
+        #     assert difficulty is not None
+        #     self.handler = self.game = Game(1920, 1080, song, difficulty)
+        # if state == GAME_STATE.SONG_SELECT:
+        #     self.handler = self.song_select
+
+        # self._state = GAME_STATE.SONG_SELECT
+        # self.song_select = SongSelect(self)
+
+    def change_state(self, state: str):
+        if state == 'song select':
+            _audio_engine.song.stop()
+            window.change_handler(state)
 
 
 def swap_codecs():
@@ -752,85 +792,85 @@ def swap_codecs():
         decoders.append(temp)
 
 
-class GameWindow(arcade.Window):
-    def __init__(self):
-        """ Create game window """
-        global _time_engine, _audio_engine, _graphics_engine, _window
-        super().__init__(1920, 1080, "musicality",
-                         fullscreen=False, resizable=True, update_rate=1/60)
-        arcade.set_background_color(arcade.color.BLACK)
-
-        swap_codecs()
-
-        _window = self
-        _time_engine = TimeEngine()
-        _audio_engine = AudioEngine()
-        _graphics_engine = GraphicsEngine()
-
-        self._state = GAME_STATE.SONG_SELECT
-        self.song_select = SongSelect(self)
-        _window.set_state(GAME_STATE.SONG_SELECT)
-        # self._state = GAME_STATE.GAME_PAUSED
-        # self.game = Game(1920, 1080, 'MONSTER', 'NORMAL')
-
-        self.handler = self.song_select
-
-    def update(self, delta_time: float):
-        self.handler.update(delta_time)
-
-    def on_update(self, delta_time: float):
-        self.handler.on_update(delta_time)
-
-    def on_draw(self):
-        self.handler.on_draw()
-
-    def on_resize(self, width: float, height: float):
-        self.handler.on_resize(width, height)
-
-    def on_mouse_motion(self, x: float, y: float, dx: float, dy: float):
-        self.handler.on_mouse_motion(x, y, dx, dy)
-
-    def on_key_press(self, symbol: int, modifiers: int):
-        self.handler.on_key_press(symbol, modifiers)
-
-    def on_key_release(self, symbol: int, modifiers: int):
-        self.handler.on_key_release(symbol, modifiers)
-
-    def on_mouse_press(self, x: float, y: float, button: int, modifiers: int):
-        self.handler.on_mouse_press(x, y, button, modifiers)
-
-    def on_mouse_drag(self, x: float, y: float, dx: float, dy: float,
-                      buttons: int, modifiers: int):
-        self.handler.on_mouse_drag(x, y, dx, dy, buttons, modifiers)
-
-    def on_mouse_release(self, x: float, y: float, button: int, modifiers: int):
-        self.handler.on_mouse_release(x, y, button, modifiers)
-
-    def on_mouse_scroll(self, x: int, y: int, scroll_x: int, scroll_y: int):
-        self.handler.on_mouse_scroll(x, y, scroll_x, scroll_y)
-
-    @property
-    def state(self):
-        """ Return current state of the instance """
-        return self._state
-
-    def set_state(self, state: GameState, **kwargs):
-        self._state = state
-        if state == GAME_STATE.GAME_PAUSED:
-            song = kwargs.pop('song', None)
-            difficulty = kwargs.pop('difficulty', None)
-            assert song is not None
-            assert difficulty is not None
-            self.handler = self.game = Game(1920, 1080, song, difficulty)
-        if state == GAME_STATE.SONG_SELECT:
-            self.handler = self.song_select
-
-
-def main():
-    global _window
-    _window = GameWindow()
-    arcade.run()
+# class GameWindow(arcade.Window):
+#     def __init__(self):
+#         """ Create game window """
+#         global _time_engine, _audio_engine, _graphics_engine, _window
+#         super().__init__(1920, 1080, "musicality",
+#                          fullscreen=False, resizable=True, update_rate=1 / 60)
+#         arcade.set_background_color(arcade.color.BLACK)
+#
+#         swap_codecs()
+#
+#         _window = self
+#         _time_engine = TimeEngine()
+#         _audio_engine = AudioEngine()
+#         _graphics_engine = GraphicsEngine()
+#
+#         self._state = GAME_STATE.SONG_SELECT
+#         self.song_select = SongSelect(self)
+#         _window.set_state(GAME_STATE.SONG_SELECT)
+#         # self._state = GAME_STATE.GAME_PAUSED
+#         # self.game = Game(1920, 1080, 'MONSTER', 'NORMAL')
+#
+#         self.handler = self.song_select
+#
+#     def update(self, delta_time: float):
+#         self.handler.update(delta_time)
+#
+#     def on_update(self, delta_time: float):
+#         self.handler.on_update(delta_time)
+#
+#     def on_draw(self):
+#         self.handler.on_draw()
+#
+#     def on_resize(self, width: float, height: float):
+#         self.handler.on_resize(width, height)
+#
+#     def on_mouse_motion(self, x: float, y: float, dx: float, dy: float):
+#         self.handler.on_mouse_motion(x, y, dx, dy)
+#
+#     def on_key_press(self, symbol: int, modifiers: int):
+#         self.handler.on_key_press(symbol, modifiers)
+#
+#     def on_key_release(self, symbol: int, modifiers: int):
+#         self.handler.on_key_release(symbol, modifiers)
+#
+#     def on_mouse_press(self, x: float, y: float, button: int, modifiers: int):
+#         self.handler.on_mouse_press(x, y, button, modifiers)
+#
+#     def on_mouse_drag(self, x: float, y: float, dx: float, dy: float,
+#                       buttons: int, modifiers: int):
+#         self.handler.on_mouse_drag(x, y, dx, dy, buttons, modifiers)
+#
+#     def on_mouse_release(self, x: float, y: float, button: int, modifiers: int):
+#         self.handler.on_mouse_release(x, y, button, modifiers)
+#
+#     def on_mouse_scroll(self, x: int, y: int, scroll_x: int, scroll_y: int):
+#         self.handler.on_mouse_scroll(x, y, scroll_x, scroll_y)
+#
+#     @property
+#     def state(self):
+#         """ Return current state of the instance """
+#         return self._state
+#
+#     def set_state(self, state: GameState, **kwargs):
+#         self._state = state
+#         if state == GAME_STATE.GAME_PAUSED:
+#             song = kwargs.pop('song', None)
+#             difficulty = kwargs.pop('difficulty', None)
+#             assert song is not None
+#             assert difficulty is not None
+#             self.handler = self.game = Game(1920, 1080, song, difficulty)
+#         if state == GAME_STATE.SONG_SELECT:
+#             self.handler = self.song_select
 
 
-if __name__ == "__main__":
-    main()
+# def main():
+#     global _window
+#     _window = GameWindow()
+#     arcade.run()
+
+#
+# if __name__ == "__main__":
+#     main()

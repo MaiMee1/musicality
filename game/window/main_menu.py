@@ -1,14 +1,12 @@
 from typing import List
 from pathlib import Path
-from functools import partial
 
 import arcade
 
 from game.window.window import BaseForm, Main
-from game.window import key
 from game.graphics.element import Button, UIElement, Text
 from game.animation.ease import EaseColor
-from game.audio import Audio
+from game.legacy.audio import Audio
 
 
 def create_menu_button(text1: str, text2: str = '', color=arcade.color.PURPLE_HEART, secondary_color=arcade.color.RED_VIOLET):

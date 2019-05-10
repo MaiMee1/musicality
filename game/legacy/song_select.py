@@ -8,7 +8,7 @@ import pyglet
 
 from game.constants import MouseState, MOUSE_STATE, UIElementState, UI_ELEMENT_STATE, GAME_STATE
 from game.window import key as key_
-from game.audio import AudioEngine, Beatmap
+from game.legacy.audio import AudioEngine, Beatmap
 
 SCROLL_SPEED = 20
 
@@ -418,7 +418,7 @@ class UIManger:
     def on_mouse_release(self, x: float, y: float, button: int, modifiers: int):
         for pressable in self._pressed:
             pressable.release()
-        _graphics_engine.mouse.set_state(MOUSE_STATE.IDLE)
+        # _graphics_engine.mouse.set_state(MOUSE_STATE.IDLE)
 
     def on_mouse_scroll(self, x: int, y: int, scroll_x: int, scroll_y: int):
         for pressable in self._pressable:
@@ -542,79 +542,4 @@ class GraphicsEngine:
         for elem in self._elements:
             elem.draw()
 
-
-class SongSelect:
-    """ """
-    def __init__(self, window):
-        """ """
-        global _window, _time_engine, _audio_engine, _graphics_engine, _UI_manager
-        self._window = _window = window
-        assert _window.state == GAME_STATE.SONG_SELECT
-
-        self._time_engine = _time_engine = TimeEngine()
-        self._audio_engine = _audio_engine = AudioEngine()
-        self._graphics_engine = _graphics_engine = GraphicsEngine()
-
-        self._UI_manager = _UI_manager = UIManger()
-
-        _UI_manager.create_songs()
-
-    def update(self, delta_time: float):
-        _UI_manager.update(delta_time)
-
-    def on_update(self, delta_time: float):
-        pass
-
-    def on_draw(self):
-        """ This is called during the idle time when it should be called """
-        _time_engine.tick()
-        _graphics_engine.on_draw()
-
-    def on_resize(self, width: float, height: float):
-        pass
-
-    def on_key_press(self, symbol: int, modifiers: int):
-        pass
-        if symbol == key_.NUM_ADD:
-            _audio_engine.song.volume *= 2
-        if symbol == key_.NUM_SUBTRACT:
-            _audio_engine.song.volume *= 0.5
-        if symbol == 99 and modifiers & 1 and modifiers & 2:
-            # CTRL + SHIFT + C to close, for fullscreen emergency
-            # TODO: Find a good way to exit
-            pyglet.app.exit()
-
-    def on_key_release(self, symbol: int, modifiers: int):
-        pass
-
-    def on_mouse_motion(self, x: float, y: float, dx: float, dy: float):
-        _UI_manager.on_mouse_motion(x, y, dx, dy)
-
-    def on_mouse_press(self, x: float, y: float, button: int, modifiers: int):
-        _UI_manager.on_mouse_press(x, y, button, modifiers)
-
-    def on_mouse_drag(self, x: float, y: float, dx: float, dy: float,
-                      buttons: int, modifiers: int):
-        _UI_manager.on_mouse_drag(x, y, dx, dy, buttons, modifiers)
-
-    def on_mouse_release(self, x: float, y: float, button: int, modifiers: int):
-        _UI_manager.on_mouse_release(x, y, button, modifiers)
-
-    def on_mouse_scroll(self, x: int, y: int, scroll_x: int, scroll_y: int):
-        _UI_manager.on_mouse_scroll(x, y, scroll_x, scroll_y)
-
-    @staticmethod
-    def get_beatmap_filepath(song: str, difficulty: str) -> Optional[Path]:
-        """ Return the filepath to .osu file given the name and
-        difficulty of the song. """
-        songs = Path('resources/Songs').rglob(f'*{song}*')
-        try:
-            for song in songs:
-                if difficulty == '*' and song.suffix == '.osu':
-                    return song
-                if difficulty in song.name and song.suffix == '.osu':
-                    return song
-        except StopIteration:
-            return
-        return
 

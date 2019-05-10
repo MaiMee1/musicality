@@ -583,7 +583,7 @@ class AudioEngine:
     def load_beatmap(self, beatmap: Beatmap):
         """ Call this each game """
         self._beatmap = beatmap
-        self._song = Audio(filename=beatmap.audio_filename, loader=beatmap.resource_loader)
+        self._song = Audio(filename=beatmap.audio_filename, loader=beatmap.resource_loader, streaming=True)
 
     def _generate_sample_set(self):
         d = {audio.name[:-4]: audio for audio in self._beatmap.generate_hit_sounds()}

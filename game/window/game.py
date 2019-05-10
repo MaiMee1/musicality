@@ -1,11 +1,11 @@
 from game.window.window import BaseForm, Main
 
-import pyglet
+from osu.beatmap import Beatmap
 
 
 class Game(BaseForm):
     """ Game mode """
-    def __init__(self, window: Main):
+    def __init__(self, window: Main, beatmap: Beatmap):
         super().__init__(window)
         self.caption = 'musicality - Game'
 
@@ -38,4 +38,3 @@ class Game(BaseForm):
 
     def change_state(self, state: str):
         pass
-
