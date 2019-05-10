@@ -31,6 +31,8 @@ class UIElement(Drawable, Movable):
             'on_in': [],
             'on_out': [],
             'on_draw': [],
+            'on_select': [],
+            'on_unselect': [],
         }  # type: Dict[str:List[Tuple[Callable[['UIElement'], Any], Any]]]
 
     def _call_action(self, key: str):
@@ -195,6 +197,14 @@ class UIElement(Drawable, Movable):
     def on_release(self):
         self._call_action('on_release')
         self.pressed = False
+
+    def on_select(self):
+        self._call_action('on_select')
+        self.selected = True
+
+    def on_unselect(self):
+        self._call_action('on_unselect')
+        self.selected = False
 
 
 class Button(UIElement):

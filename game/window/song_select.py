@@ -4,10 +4,11 @@ from pathlib import Path
 from functools import partial
 
 import arcade
+import pyglet
 
 from game.window.window import BaseForm, Main
 from game.window import key
-from game.graphics import UIElement, Sprite, DrawableRectangle, Group, Text
+from game.graphics import UIElement, Sprite, DrawableRectangle, Group, Text, Rectangle
 from game.animation.ease import EaseColor, EasePosition
 from game.audio import Audio
 from osu.beatmap import Beatmap, get_beatmaps
@@ -43,7 +44,8 @@ class SongBar(UIElement):
         drawable.extend((title, artist_creator, version))
         drawable.append(white_wash)
         drawable.set_ref(index=1)
-        super().__init__(drawable)
+        rec_ref = Rectangle(rec.center_x, rec.center_y+6, rec.width, rec.height-12)
+        super().__init__(drawable, ref_shape=rec_ref)
         self.rec, self.white_wash, self.pic, self.title, self.artist_creator, self.version = rec, white_wash, pic, title, artist_creator, version
 
         change_bg = partial(window.change_bg, Sprite(beatmap.background_filepath, pic.bg_scale, center_x=window.width // 2, center_y=window.height // 2))
@@ -51,9 +53,17 @@ class SongBar(UIElement):
         print((beatmap.title, beatmap.artist, beatmap.version))
         play = partial(window.play, beatmap.resource_loader.media(beatmap.audio_filename), beatmap.preview_timestamp)
 
+        def on_out(self):
+            if self.selected:
+                pass
+            else:
+                self.white_wash.visible = False
+
         self.add_action('on_press', lambda *args: (change_bg(), play()))
-        self.add_action('on_in', lambda *args: (setattr(args[0].white_wash, 'visible', True)))
-        self.add_action('on_out', lambda *args: setattr(args[0].white_wash, 'visible', False))
+        self.add_action('on_in', lambda *args: (setattr(args[0].white_wash, 'visible', True), args[0].move(-50, 0)))
+        self.add_action('on_out', lambda *args: (on_out(args[0]), args[0].move(50, 0)))
+        self.add_action('on_select', lambda *args: (setattr(args[0].white_wash, 'visible', True), args[0].move(-100, 0)))
+        self.add_action('on_unselect', lambda *args: (setattr(args[0].white_wash, 'visible', False), args[0].move(100, 0)))
 
 
 class SlidingSongBar:
@@ -110,7 +120,12 @@ class SlidingSongBar:
         for group in self.song_bars:
             for element in group:
                 if element.is_inside(x, y):
-                    element.on_press()
+                    if button == 1:
+                        element.on_press()
+                        element.on_select()
+                else:
+                    if element.selected:
+                        element.on_unselect()
 
     def on_mouse_release(self, x: int, y: int, button: int, modifiers: int):
         # UI MANAGEMENT
@@ -233,6 +248,9 @@ class SongSelect(BaseForm):
         self.bg = None
         self.player = None
 
+        self.bar_manager.on_mouse_press(1800, self.width//2, 1, 0)
+        self.bar_manager.on_mouse_press(0, 1080, 2, 0)
+
     def change_bg(self, new_bg: Sprite):
         self.bg = new_bg
 
@@ -287,10 +305,11 @@ class SongSelect(BaseForm):
         pass
 
     def on_mouse_press(self, x: int, y: int, button: int, modifiers: int):
-        # UI MANAGEMENT
-        for element in self.elements:
-            if element.is_inside(x, y):
-                element.on_press()
+        if button == 1:
+            # UI MANAGEMENT
+            for element in self.elements:
+                if element.is_inside(x, y):
+                    element.on_press()
 
         self.bar_manager.on_mouse_press(x, y, button, modifiers)
 

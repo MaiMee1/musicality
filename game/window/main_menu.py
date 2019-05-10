@@ -13,7 +13,9 @@ from game.audio import Audio
 
 def create_menu_button(text1: str, text2: str = '', color=arcade.color.PURPLE_HEART, secondary_color=arcade.color.RED_VIOLET):
     """ Create a menu button that changes color when hover """
-    button = Button(0, 0, 550, 120, color, secondary_color=secondary_color)
+    color = color[0], color[1], color[2], 230
+    secondary_color = secondary_color[0], secondary_color[1], secondary_color[2], 230
+    button = Button(0, 0, 550, 120, color, secondary_color=secondary_color, alpha=230)
     text1_ = Text(text1, button.left+140, button.bottom+42, arcade.color.WHITE, 56)
     text2_ = Text(text2, button.left+180, button.bottom+16, arcade.color.WHITE, 16)
     text2_.visible = False
@@ -105,6 +107,9 @@ class MainMenu(BaseForm):
 
     def on_draw(self):
         self.clear()
+        # DRAW BG
+        if self._window._handler_cache['song select'].bg:
+            self._window._handler_cache['song select'].bg.draw()
         # DRAW UI
         for element in self.elements:
             element.draw()
@@ -132,10 +137,11 @@ class MainMenu(BaseForm):
         pass
 
     def on_mouse_press(self, x: int, y: int, button: int, modifiers: int):
-        # UI MANAGEMENT
-        for element in self.elements:
-            if element.is_inside(x, y):
-                element.on_press()
+        if button == 1:
+            # UI MANAGEMENT
+            for element in self.elements:
+                if element.is_inside(x, y):
+                    element.on_press()
 
     def on_mouse_release(self, x: int, y: int, button: int, modifiers: int):
         # UI MANAGEMENT
