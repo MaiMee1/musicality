@@ -1,5 +1,5 @@
 from collections import namedtuple
-from game.legacy.type_ import *
+from game.type_ import *
 
 # for Beatmap
 SAMPLE = ('hitnormal', 'hitwhistle', 'hitfinish', 'hitclap')
