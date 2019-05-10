@@ -586,7 +586,11 @@ class AudioEngine:
         self._song = Audio(filename=beatmap.audio_filename, loader=beatmap.resource_loader, streaming=True)
 
     def _generate_sample_set(self):
-        d = {audio.name[:-4]: audio for audio in self._beatmap.generate_hit_sounds()}
+        def generate_hit_sounds(self: Beatmap):
+            """ Generate and return a list of audio objects """
+            temp = [Audio(filename=name, loader=self._loader) for name in self._sample_filenames]
+            return temp
+        d = {audio.name[:-4]: audio for audio in generate_hit_sounds(self._beatmap)}
         for name in AudioEngine.SAMPLE_NAMES:
             if name not in d:
                 audio = Audio(filename=(name + '.wav'), loader=self._default_loader)
