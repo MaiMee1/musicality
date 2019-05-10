@@ -300,6 +300,9 @@ class GraphicsEngine:
         elif self._bg:
             self._draw_background()
 
+        if window._handler.state == GAME_STATE.GAME_PAUSED:
+            arcade.draw_rectangle_filled(window.width//2, window.height//5, 200, 50, arcade.color.BLACK)
+            arcade.draw_text("Press 'P' to play", window.width//2, window.height//5, arcade.color.WHITE, 16, align='center', anchor_x='center', anchor_y='center')
         if self._keyboard:
             self._draw_keyboard()
 
