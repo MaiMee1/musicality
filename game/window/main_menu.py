@@ -29,8 +29,7 @@ def create_menu_button(text1: str, text2: str = '', color=arcade.color.PURPLE_HE
         except TimeoutError:
             raise
 
-    from pathlib import Path
-    hover_sound = Audio(filepath=Path('resources/sound/menu hover.wav'), absolute=False, static=True)
+    hover_sound = Audio(filepath=Path('resources/sound/menu hover.wav'), absolute=False)
 
     def change_to_secondary_color(self):
         change(self, self.primary_color, self.secondary_color)
@@ -149,6 +148,5 @@ class MainMenu(BaseForm):
 
     def change_state(self, state: str):
         if state == 'song select':
-            from .song_select import SongSelect
-            self._window.change_handler(SongSelect(self._window))
+            self._window.change_handler(state)
 

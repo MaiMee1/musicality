@@ -1,4 +1,4 @@
-from math import pi, sin, e, log
+from math import pi, sin, cos, e, log
 
 
 def linear(t: float):
@@ -8,13 +8,13 @@ def linear(t: float):
 
 def quad_in(t: float):
     """ f(t) = t^2 """
-    return t**2
+    return t*t
 
 
 def quad_out(t: float):
     """ f(t) = -t^2 + 1 """
     t = 1 - t
-    return 1 - t**2
+    return 1 - t*t
 
 
 def cube_in(t: float):
@@ -74,3 +74,15 @@ def ln_out(t: float):
             return 0
         else:
             raise
+
+
+def damped_oscillation(t: float):
+    """ f(t) = e^(-t)cos(pi*t) """
+    d = t / 2.5
+    return e**(-d) * cos(pi*d)
+
+
+def some_arbitrary_elastic_out(t: float):
+    """ f(t) = 1 - e^-t cos(2pi*t) (1 - t^2)"""
+    d = t / 1.25
+    return 1 - e**(-d)*cos(2*pi*d)*(1-t*d)

@@ -5,6 +5,8 @@ import warnings
 
 import pyglet
 
+_beatmaps = {}
+
 
 def get_relative_path(path: Path, relative_root: Path = Path().resolve()):
     """ Return a relative path. If already relative, return unchanged """
@@ -59,12 +61,14 @@ class Beatmap:
             audio_filename = read_until(f, 'AudioFilename: ')
             assert audio_filename.endswith('.mp3')
             self._audio_filepath = filepath.parent / Path(audio_filename)
+            preview_time = read_until(f, 'PreviewTime: ')
+            self._preview_timestamp = int(preview_time) / 1000
 
             def get_data(container: Dict,
                          str_heads: Iterable[str],
                          keys: Optional[Iterable[str]] = None,
-                         to_int: Optional[Iterable[str], str] = None,
-                         to_float: Optional[Iterable[str], str] = None,
+                         to_int: Union[Iterable[str], str, None] = None,
+                         to_float: Union[Iterable[str], str, None] = None,
                          **kwargs):
                 """ Read into container. Mutates container. Custom for v14, 12 only """
                 if to_int:
@@ -103,7 +107,7 @@ class Beatmap:
 
             self._metadata = {}
             get_data(self._metadata,
-                     ('Title:','TitleUnicode:', 'ArtistUnicode:', 'Creator:',
+                     ('Title:', 'TitleUnicode:', 'Artist:', 'ArtistUnicode:', 'Creator:',
                       'Version:', 'Source:', 'Tags:', 'BeatmapID:', 'BeatmapSetID:'),
                      to_int=['BeatmapID', 'BeatmapSetID'],
                      to_list=(lambda s: [x for x in s.split(' ')], ('Tags',)))
@@ -123,6 +127,9 @@ class Beatmap:
                     if elem.endswith('.jpg'):
                         self._background_filename = elem
                     elif elem.endswith('.png'):
+                        self._background_filename = elem
+                    elif elem.endswith('.JPG'):
+                        # WTF? Why would you use an uppercase suffix...
                         self._background_filename = elem
                     elif elem.endswith('.mp4'):
                         self._video_filename = elem
@@ -168,9 +175,15 @@ class Beatmap:
 
     @property
     def background_filename(self) -> Optional[str]:
-        """ Return name of the song file """
+        """ Return name of the background file """
         if self._background_filename:
             return self._background_filename
+
+    @property
+    def background_filepath(self) -> Optional[Path]:
+        """ Return path of the background file """
+        if self._background_filename:
+            return self.get_folder_path() / self._background_filename
 
     @property
     def video_filename(self) -> Optional[str]:
@@ -182,24 +195,35 @@ class Beatmap:
         """ Return a list of name of custom samples """
         return self._sample_filenames
 
-    # def generate_hit_objects(self) -> List[HitObject]:
-    #     """ Generate and return a list of processed hit_objects """
-    #     from random import seed, shuffle
-    #     from game.window import key
-    #
-    #     seed(round(sum(self._hit_times), 3))
-    #
-    #     def get_random(L: list, cache=[]):
-    #         if not cache:
-    #             shuffle(L)
-    #             cache.extend(L[:5])
-    #         return cache.pop(-1)
-    #
-    #     hit_objects = [
-    #         HitObject(self, hit_time, get_random(key.normal_keys), HitObject.TYPE.TAP)
-    #         for hit_time in self._hit_times
-    #     ]
-    #     return hit_objects
+    @property
+    def title(self) -> str:
+        return self._metadata['Title']
+
+    @property
+    def unicode_title(self) -> str:
+        return self._metadata['TitleUnicode']
+
+    @property
+    def artist(self) -> str:
+        return self._metadata['Artist']
+
+    @property
+    def unicode_artist(self) -> str:
+        return self._metadata['ArtistUnicode']
+
+    @property
+    def creator(self) -> str:
+        return self._metadata['Creator']
+
+    @property
+    def id(self) -> int:
+        if self._metadata['BeatmapID']:
+            return self._metadata['BeatmapID']
+        return 0
+
+    @property
+    def preview_timestamp(self) -> float:
+        return self._preview_timestamp
 
     @property
     def version(self) -> str:
@@ -225,3 +249,18 @@ class Beatmap:
     def AR(self) -> float:
         """ Return the approach rate of the instance """
         return self._difficulty['ApproachRate']
+
+
+def load():
+    global _beatmaps
+
+    for folder in Path('resources/Songs/').iterdir():
+        temp = {file.stem: Beatmap(file) for file in folder.rglob('*.osu')}
+        _beatmaps[folder.name] = temp
+
+
+def get_beatmaps() -> Dict[str, Dict[str, Beatmap]]:
+    if not _beatmaps:
+        load()
+    return _beatmaps
+

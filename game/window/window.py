@@ -749,10 +749,18 @@ class BaseForm(metaclass=ABCMeta):
 # noinspection PyMethodOverriding,PyAbstractClass
 class Main(arcade.Window):
     """ Main window """
-    def __init__(self, Window):
+    def __init__(self):
         """"""
+        from .main_menu import MainMenu
+        from .song_select import SongSelect
+        from .game import Game
         super().__init__(width=1920, height=1080, fullscreen=True)
-        self._handler = Window(self)  # type: BaseForm
+        self._handler_cache = {
+            'main menu': MainMenu(self),
+            'song select': SongSelect(self),
+            'game': Game(self),
+        }
+        self._handler = self._handler_cache['main menu'] # type: BaseForm
 
     def on_key_press(self, symbol: int, modifiers: int):
         self._handler.on_key_press(symbol, modifiers)
@@ -826,7 +834,18 @@ class Main(arcade.Window):
     def on_update(self, delta_time: float):
         self._handler.on_update(delta_time)
 
-    def change_handler(self, handler: BaseForm):
-        assert isinstance(handler, BaseForm)
-        self._handler = handler
+    def change_handler(self, handler: str):
+        if handler == 'song select':
+            if handler not in self._handler_cache:
+                from .song_select import SongSelect
+                self._handler = SongSelect(self._window)
+            else:
+                self._handler = self._handler_cache[handler]
+        elif handler == 'main menu':
+            if handler not in self._handler_cache:
+                from .main_menu import MainMenu
+                self._handler = MainMenu(self._window)
+            else:
+                self._handler = self._handler_cache[handler]
+
 
