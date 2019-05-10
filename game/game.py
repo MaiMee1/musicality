@@ -11,7 +11,6 @@ from game.legacy.keyboard import Keyboard, Key
 from game.legacy import keyboard as keyboard_
 from game.window import key as key_
 from game.constants import GAME_STATE
-from game.legacy.song_select import UIManger
 import time
 
 from game.legacy.audio import Beatmap, AudioEngine, HitObject

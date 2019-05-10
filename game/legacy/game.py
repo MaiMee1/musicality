@@ -27,7 +27,6 @@ _graphics_engine = None  # type: Optional[GraphicsEngine]
 
 _score_manager = None  # type: Optional[ScoreManager]
 _hit_object_manager = None  # type: Optional[HitObjectManager]
-_UI_manager = None  # type: Optional[UIManger]
 
 
 class TimeEngine:
@@ -651,7 +650,7 @@ class Game(BaseForm):
         _audio_engine = AudioEngine()
         _graphics_engine = GraphicsEngine()
 
-        global _score_manager, _hit_object_manager, _UI_manager
+        global _score_manager, _hit_object_manager
 
         self._beatmap = beatmap
 
