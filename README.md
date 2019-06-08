@@ -66,7 +66,7 @@ basis of pyglet—the library this game uses—is being depreciated in favour of
 This is a school projcet that I'm already done with.
 I'm not a game designer and so I don't really feel like trying to make a game enjoyable, but if it 
 already is and you really enjoy playing it, or have some ideas about ways to improve it so that it can be
-enjoyable enough for you/other people to play it regularly enough, contact me. (I'll think about how later.)
+enjoyable enough for you/other people to play it regularly enough, contact me.
 
 Q. Is this project dead?\
 A. No, not yet (as of 2019). I'll call it a temporary hiatus.
