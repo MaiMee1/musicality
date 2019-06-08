@@ -4,7 +4,7 @@ A _beginner_ python music/rhythm game school project. Inspired partly by those o
 with a twist. (Not fully completed.) Project is currently indefinitely in hiatus.
 
 ## Requirements
-`python 3.6`+ (code has [variable annotations and 'F' prefix]("#" "added in python 3.6"))
+`python 3.6`+ (code has [variable annotations and 'F' prefix](README.md# "added in python 3.6"))
 
 libraries
 - `arcade (2.0.0)`+
