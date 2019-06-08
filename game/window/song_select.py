@@ -60,7 +60,7 @@ class SongBar(UIElement):
 
         change_bg = partial(window.change_bg, Sprite(beatmap.background_filepath, pic.bg_scale, center_x=window.width // 2, center_y=window.height // 2))
 
-        # print((beatmap.title, beatmap.artist, beatmap.version))
+        print((beatmap.title, beatmap.artist, beatmap.version))
         play = partial(window.play, beatmap.resource_loader.media(beatmap.audio_filename), beatmap.preview_timestamp)
 
         def on_in():
@@ -78,6 +78,7 @@ class SongBar(UIElement):
         self.add_action('on_out', lambda *args: (on_out(args[0]), args[0].move(50, 0)))
         self.add_action('on_select', lambda *args: (setattr(args[0].white_wash, 'visible', True), args[0].move(-100, 0)))
         self.add_action('on_unselect', lambda *args: (setattr(args[0].white_wash, 'visible', False), args[0].move(100, 0)))
+
 
 
 class SlidingSongBar:

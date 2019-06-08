@@ -753,13 +753,12 @@ class Main(arcade.Window):
         """"""
         from .main_menu import MainMenu
         from .song_select import SongSelect
-        from .game import Game
         super().__init__(width=1920, height=1080, fullscreen=True)
         self._handler_cache = {
             'main menu': MainMenu(self),
             'song select': SongSelect(self),
         }
-        self._handler = self._handler_cache['main menu'] # type: BaseForm
+        self._handler = self._handler_cache['main menu']  # type: BaseForm
 
     def on_key_press(self, symbol: int, modifiers: int):
         self._handler.on_key_press(symbol, modifiers)
