@@ -4,9 +4,9 @@ A _beginner_ python music/rhythm game school project. Inspired partly by those o
 with a twist. (Not fully completed.) Project is currently indefinitely in hiatus.
 
 ## Requirements
-`python 3.6`+ (code has [variable annotations and 'F' prefix](README.md# "added in python 3.6"))
+`python 3.6`+ (code has [variable annotations, 'F' prefix](README.md# "added in python 3.6"), and [positional and keyword arguments after * and ** expression](README.md# "added in python 3.5") )
 
-libraries
+libraries:
 - `arcade (2.0.0)`+
 - `pyglet (1.3.7)`+
 
