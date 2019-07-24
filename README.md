@@ -11,8 +11,10 @@ Libraries:
 - `pyglet (1.3.7)`+
 
 Codec Decoder:
-- `FFmpeg` [Get it here](https://ffmpeg.org/download.html)
-- `AVbin` (requirement of pyglet's sound library)
+- `FFmpeg`
+- `AVbin` (requirement of pyglet's sound library) (may not actually need this)
+
+> **Note:** For mac, you can use Homebrew to install FFmpeg (Google it), though note that `arcade 2.x.x` seems to be having trouble with FFmpeg, so it may still not work. For windows, download the files from https://ffmpeg.org/download.html and put it in the Lib folder in the running python folder. [Link to a stack overflow question about where to put the files.](https://stackoverflow.com/questions/47821756/pyglet-and-ffmpeg)
 
 System Requirements:
 - currently might not work with __mac OS__ (sound/codec problems).
@@ -46,7 +48,7 @@ A. Try running from the terminal or an IDE. Running by opening the `init.py`
 file directly doesn't always work.
 
 Q. It still doesn't run.\
-A. Check the requirements and see if you meet it. If you already have, I'm sorry but I also don't know
+A. Check the requirements and see if you meet it. You need both `arcade 2+` and `pyglet`, and most importantly, `FFmpeg`. If you already have, I'm sorry but I also don't know
 why you can't play the game.
 
 Q. How do I play the song?\
